@@ -1,72 +1,64 @@
-#ifndef WONDERUI_H
-#define WONDERUI_H
+/*
+WonderUI - é€šç”¨OLEDæ˜¾ç¤ºç•Œé¢åº“
+é€‚ç”¨äºU8g2ï¼ŒåŒ…å«è¾“å…¥ã€åˆ—è¡¨é€‰æ‹©ã€æ•°å€¼è°ƒèŠ‚ã€ç¡®è®¤æ¡†åŠå¼€æœºåŠ¨ç”»ã€‚
+ç¤ºä¾‹åŒ–æ—¶ä¼ å…¥U8g2å¯¹è±¡å’ŒæŒ‰é’®å¼•è„šï¼Œä½¿ç”¨é»˜è®¤å¼•è„šå¯çœç•¥ã€‚
+*/
 
-#include <U8g2lib.h>
+#ifndef WonderUI_h
+#define WonderUI_h
+
 #include <Arduino.h>
-#include <vector>
+#include <U8g2lib.h>
 
 class WonderUI {
 public:
-    // ¹¹Ôìº¯Êı£º´«ÈëU8G2¶ÔÏóºÍ6¸ö°´¼üÒı½Å£¨Ä¬ÈÏÓëÔ­Ê¼Ó²¼şÒ»ÖÂ£©
-    // Òı½Å£ºÉÏ, ÏÂ, ×ó, ÓÒ, È·ÈÏ(OK), ·µ»Ø(Set)
-    WonderUI(U8G2 &display, 
-             int upPin = 12, int downPin = 13, int leftPin = 14, 
-             int rightPin = 27, int okPin = 33, int setPin = 26);
-
-    // ³õÊ¼»¯£¨ÉèÖÃ°´¼üÒı½ÅÄ£Ê½£¬U8G2³õÊ¼»¯µÈ£©
-    void begin(uint8_t contrast = 255);
-
-    // ²¥·ÅÆô¶¯¶¯»­
-    void startAnimation();
-
-    // ×Ö·û´®ÊäÈë£¨È«¼üÅÌ£©
-    // title: ÏÔÊ¾ÔÚ¶¥²¿µÄ±êÌâ£¨¿ÉÑ¡£©
-    // maxLength: ×î´ó×Ö·ûÊı
-    String inputString(const String& title = "", int maxLength = 25);
-
-    // Êı×ÖÊäÈë
-    // maxLength: ×î´óÎ»Êı
-    // base: 'D' Ê®½øÖÆ¼üÅÌ£¨0-9£¬Çå³ı£¬ÍË¸ñ£©£¬'B' ¶ş½øÖÆ¼üÅÌ£¨0,1£¬Çå³ı£¬ÍË¸ñ£©
-    String inputNumber(int maxLength = 10, char base = 'D');
-
-    // Í¨ÓÃÁĞ±íÑ¡Ôñ£¨Ö§³ÖÈÎÒâ¶à¸öÑ¡Ïî£©
-    // title: ¶Ô»°¿ò±êÌâ
-    // options: Ñ¡ÏîÁĞ±í£¨×Ö·û´®£©
-    // ·µ»ØÑ¡ÖĞÏîµÄË÷Òı£¨0Æğ£©£¬ÈôÓÃ»§°´ Set ÍË³öÔò·µ»Ø -1
-    int listChoose(const String& title, const std::vector<String>& options);
-
-    // ÊıÖµÔö¼õµ÷½Ú
-    // title: ±êÌâ
-    // minVal, maxVal: ×îĞ¡/×î´óÖµ
-    // initial: ³õÊ¼Öµ
-    int numericUpDown(const String& title, int minVal, int maxVal, int initial = 0);
-
-    // ÏûÏ¢¿ò£¨´øÈ·ÈÏ/È¡Ïû£©
-    // title: ±êÌâ
-    // line1~line3: ÏÔÊ¾µÄÈıĞĞÎÄ±¾
-    // line4: µ×²¿°´Å¥ÌáÊ¾£¬Ä¬ÈÏ "OK:¼ÌĞø   Set:ÍË³ö"
-    bool messageBox(const String& title, const String& line1, 
-                    const String& line2 = "", const String& line3 = "", 
-                    const String& line4 = "");
-
-    // ¼òµ¥ÌáÊ¾¿ò£¨Ö»ÓĞ OK °´Å¥£©
-    void alert(const String& title, const String& line1, 
-               const String& line2 = "", const String& line3 = "");
-
+	// æ„é€ å‡½æ•°ï¼Œé»˜è®¤æŒ‰é’®å¼•è„šä¸åŸä»£ç ä¸€è‡´
+	WonderUI(U8G2 &u8g2,
+			 uint8_t pinU = 12,
+			 uint8_t pinD = 13,
+			 uint8_t pinL = 14,
+			 uint8_t pinR = 27,
+			 uint8_t pinO = 33,
+			 uint8_t pinS = 26);
+	
+	// åˆå§‹åŒ–æŒ‰é’®å¼•è„šï¼ˆå†…éƒ¨ä¸Šæ‹‰ï¼‰
+	void begin();
+	// é‡æ–°è®¾ç½®å…¨éƒ¨æŒ‰é’®å¼•è„šï¼ˆç«‹å³ä½¿èƒ½å†…éƒ¨ä¸Šæ‹‰ï¼‰
+	void configureButtons(uint8_t pinU, uint8_t pinD, uint8_t pinL,
+						  uint8_t pinR, uint8_t pinO, uint8_t pinS);
+	// å¼€æœºåŠ¨ç”»
+	void start();
+	
+	// å­—ç¬¦è¾“å…¥ï¼ˆæœ€å¤§é•¿åº¦ï¼‰
+	String input(int maxl);
+	
+	// æ•°å­—è¾“å…¥ï¼ˆmaxl: æœ€å¤§é•¿åº¦, base: 'D' å¤§é”®ç›˜, 'B' äºŒå€¼æ¨ªæ¡ï¼‰
+	String inputnum(int maxl, char base);
+	
+	// å››é€‰é¡¹åˆ—è¡¨é€‰æ‹©ï¼Œè¿”å›é€‰ä¸­çš„ç´¢å¼•(0~3)
+	int listchoose4(String x, String y, String z, String a, String title);
+	
+	// ä¸‰é€‰é¡¹åˆ—è¡¨é€‰æ‹©ï¼Œè¿”å›é€‰ä¸­çš„ç´¢å¼•(0~2)
+	int listchoose3(String x, String y, String z, String title);
+	
+	// æ•°å€¼ä¸Šä¸‹è°ƒèŠ‚ï¼ˆèŒƒå›´ minn ~ maxnï¼‰
+	int numericUpDown(int maxn, int minn, String title);
+	
+	// ç¡®è®¤/ä¿¡æ¯æ¡†ï¼ŒOKè¿”å›trueï¼ŒSetè¿”å›false
+	bool check(String title, String line1, String line2, String line3, String line4);
+	
 private:
-    U8G2& u8g2;
-    int _pinUp, _pinDown, _pinLeft, _pinRight, _pinOk, _pinSet;
-
-    // ÄÚ²¿°´¼ü¶ÁÈ¡£¨Ö±½Ó¶ÁÈ¡Òı½Å£©
-    bool getButton(char key);
-
-    // ¸¨Öú»æÖÆº¯Êı
-    void drawListFrame(int y, const String& text, bool selected);
-    void drawScrollIndicator(int page, int totalPages);
-
-    // Ô­Ê¼ÊäÈëÂß¼­µÄÒÆÖ²
-    String inputRaw(int maxl, bool numericMode, char base);
-    int listChooseRaw(const String& title, const std::vector<String>& options);
+	U8G2 *_u8g2;
+	uint8_t _pinU, _pinD, _pinL, _pinR, _pinO, _pinS;
+	
+	// è¯»å–æŒ‰é’®çŠ¶æ€ï¼ˆæŒ‰ä¸‹ä¸ºtrueï¼Œä½ç”µå¹³æœ‰æ•ˆï¼‰
+	bool GetButton(char x);
+	
+	// å¼€æœºåŠ¨ç”»è¾…åŠ©å‡½æ•°
+	void start1(int y);
+	void start2(int x, int b);
+	void start3();
+	void start4();
 };
 
 #endif

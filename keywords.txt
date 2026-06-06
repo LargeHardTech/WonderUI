@@ -1,15 +1,13 @@
-# Syntax coloring for WonderUI library
-# KEYWORD1 通常用于数据类型、类名
-# KEYWORD2 用于函数/方法名
-# KEYWORD3 用于常量或特殊结构
+# WonderUI Keywords
 
-WonderUI   KEYWORD1
+WonderUI	KEYWORD1
 
-begin      KEYWORD2
-startAnimation KEYWORD2
-inputString KEYWORD2
-inputNumber KEYWORD2
-listChoose KEYWORD2
-numericUpDown KEYWORD2
-messageBox KEYWORD2
-alert      KEYWORD2
+input	KEYWORD2
+inputnum	KEYWORD2
+listchoose4	KEYWORD2
+listchoose3	KEYWORD2
+numericUpDown	KEYWORD2
+check	KEYWORD2
+start	KEYWORD2
+begin	KEYWORD2
+configureButtons	KEYWORD2
