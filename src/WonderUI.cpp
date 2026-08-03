@@ -1,4 +1,5 @@
 #include "WonderUI.h"
+#include <stdarg.h>
 
 WonderUI::WonderUI(U8G2 &u8g2,
 				   uint8_t pinU, uint8_t pinD, uint8_t pinL,
@@ -320,7 +321,7 @@ int WonderUI::listchoose4(String x, String y, String z, String a, String title) 
 	while (true) {
 		if (GetButton('D')) { p++; if (p > mp) p = 0; upd = true; }
 		else if (GetButton('U')) { p--; if (p < 0) p = mp; upd = true; }
-		else if (GetButton('O')) { return p; }
+		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
 		
 		_u8g2->firstPage();
 		do {
@@ -418,7 +419,7 @@ int WonderUI::listchoose3(String x, String y, String z, String title) {
 	while (true) {
 		if (GetButton('D')) { p++; if (p > mp) p = 0; upd = true; }
 		else if (GetButton('U')) { p--; if (p < 0) p = mp; upd = true; }
-		else if (GetButton('O')) { return p; }
+		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
 		
 		_u8g2->firstPage();
 		do {
@@ -480,6 +481,57 @@ int WonderUI::listchoose3(String x, String y, String z, String title) {
 }
 
 //-------------------------------------------
+// 不定长列表选择（可变参数，上限 8 项）
+//-------------------------------------------
+int WonderUI::listchoose(String title, int count, ...) {
+	const int MAX = 8;
+	if (count < 1) return -1;
+	if (count > MAX) count = MAX;
+
+	// 读取可变参数（字符串字面量为 const char*）
+	String items[MAX];
+	va_list args;
+	va_start(args, count);
+	for (int i = 0; i < count; i++) {
+		const char* s = va_arg(args, const char*);
+		items[i] = s ? s : "";
+	}
+	va_end(args);
+
+	int p = 0;
+	const int mp = count - 1;
+	bool upd = false;
+
+	while (true) {
+		if (GetButton('D')) { p++; if (p > mp) p = 0; upd = true; }
+		else if (GetButton('U')) { p--; if (p < 0) p = mp; upd = true; }
+		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
+		else if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+
+		_u8g2->firstPage();
+		do {
+			_u8g2->drawHLine(0, 9, 128);
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0);
+			_u8g2->print(title + "-Page" + String(p + 1));
+			_u8g2->drawVLine(125, 9, 56);
+
+			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+			_u8g2->setFontPosTop();
+			_u8g2->drawFrame(2, 11, 121, 13);
+			_u8g2->setCursor(12, 13); _u8g2->print(items[p]);
+			_u8g2->setFontPosBottom();
+			_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+			_u8g2->drawGlyph(3, 13 + 8, 129);
+		} while (_u8g2->nextPage());
+
+		if (upd) { delay(200); upd = false; }
+	}
+	return -1;
+}
+
+//-------------------------------------------
 // 数值上下调节
 //-------------------------------------------
 int WonderUI::numericUpDown(int maxn, int minn, String title) {
@@ -533,8 +585,8 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 //-------------------------------------------
 bool WonderUI::check(String title, String line1, String line2, String line3, String line4) {
 	while (true) {
-		if (GetButton('O')) break;
-		else if (GetButton('S')) return false;
+		if (GetButton('O')) { while (GetButton('O')) delay(10); break; }  // 等 OK 松手，避免残留触发
+		else if (GetButton('S')) { while (GetButton('S')) delay(10); return false; }  // 等 SET 松手
 		
 		_u8g2->firstPage();
 		do {

@@ -41,18 +41,23 @@ public:
 	// 三选项列表选择，返回选中的索引(0~2)
 	int listchoose3(String x, String y, String z, String title);
 	
+	// 不定长列表选择，返回选中的索引(0~count-1)，Set 退出返回 -1
+	// 用法: listchoose("标题", 3, "选项1", "选项2", "选项3")  （上限 8 项）
+	int listchoose(String title, int count, ...);
+	
 	// 数值上下调节（范围 minn ~ maxn）
 	int numericUpDown(int maxn, int minn, String title);
 	
 	// 确认/信息框，OK返回true，Set返回false
 	bool check(String title, String line1, String line2, String line3, String line4);
 	
+	// 读取按钮状态（按下为true，低电平有效）
+	// 'U'/'D'/'L'/'R'/'O'/'S' 对应 上下左右OK/SET
+	bool GetButton(char x);
+	
 private:
 	U8G2 *_u8g2;
 	uint8_t _pinU, _pinD, _pinL, _pinR, _pinO, _pinS;
-	
-	// 读取按钮状态（按下为true，低电平有效）
-	bool GetButton(char x);
 	
 	// 开机动画辅助函数
 	void start1(int y);
