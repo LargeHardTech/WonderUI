@@ -190,6 +190,7 @@ String WonderUI::input(int maxl) {
 		
 		bool flag = false;
 		if (GetButton('S')) {
+			while (GetButton('S')) delay(10);  // 等 SET 松手，避免残留触发下一界面
 			break;
 		} else if (GetButton('U')) {
 			y--;
@@ -260,7 +261,7 @@ String WonderUI::inputnum(int maxl, char base) {
 			} while (_u8g2->nextPage());
 			
 			bool flag = false;
-			if (GetButton('S')) break;
+			if (GetButton('S')) { while (GetButton('S')) delay(10); break; }  // 等 SET 松手
 			else if (GetButton('U')) { y--; if (y < 0) y = 1; flag = true; }
 			else if (GetButton('D')) { y++; if (y >= 2) y = 0; flag = true; }
 			else if (GetButton('L')) { x--; if (x < 0) x = 5; flag = true; }
@@ -295,7 +296,7 @@ String WonderUI::inputnum(int maxl, char base) {
 			} while (_u8g2->nextPage());
 			
 			bool flag = false;
-			if (GetButton('S')) break;
+			if (GetButton('S')) { while (GetButton('S')) delay(10); break; }  // 等 SET 松手
 			else if (GetButton('L')) { x--; if (x < 0) x = 3; flag = true; }
 			else if (GetButton('R')) { x++; if (x >= 4) x = 0; flag = true; }
 			else if (GetButton('O')) {
@@ -592,7 +593,7 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 		else if (otp > maxn) otp = maxn;
 		
 		if (flag) delay(150);
-		if (GetButton('O')) break;
+		if (GetButton('O')) { while (GetButton('O')) delay(10); break; }  // 等 OK 松手再返回
 	}
 	return otp;
 }
