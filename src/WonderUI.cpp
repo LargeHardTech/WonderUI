@@ -481,7 +481,7 @@ int WonderUI::listchoose3(String x, String y, String z, String title) {
 }
 
 //-------------------------------------------
-// 不定长列表选择（可变参数，上限 8 项）
+// 不定长列表选择（可变参数，上限 8 项，一屏 4 项光标式）
 //-------------------------------------------
 int WonderUI::listchoose(String title, int count, ...) {
 	const int MAX = 8;
@@ -498,15 +498,22 @@ int WonderUI::listchoose(String title, int count, ...) {
 	}
 	va_end(args);
 
-	int p = 0;
-	const int mp = count - 1;
+	int p = 0;        // 当前选中项
+	int offset = 0;   // 可视区顶部起始项（超过 4 项时滚动）
+	const int VISIBLE = 4;
 	bool upd = false;
 
 	while (true) {
-		if (GetButton('D')) { p++; if (p > mp) p = 0; upd = true; }
-		else if (GetButton('U')) { p--; if (p < 0) p = mp; upd = true; }
+		if (GetButton('D')) { p++; if (p >= count) p = 0; upd = true; }
+		else if (GetButton('U')) { p--; if (p < 0) p = count - 1; upd = true; }
 		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
 		else if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+
+		// 滚动：选中项越出可视区时平移
+		if (p < offset) offset = p;
+		else if (p >= offset + VISIBLE) offset = p - VISIBLE + 1;
+		if (offset > count - VISIBLE) offset = count - VISIBLE;
+		if (offset < 0) offset = 0;
 
 		_u8g2->firstPage();
 		do {
@@ -514,16 +521,26 @@ int WonderUI::listchoose(String title, int count, ...) {
 			_u8g2->setFont(u8g2_font_timR08_tf);
 			_u8g2->setFontPosTop();
 			_u8g2->setCursor(0, 0);
-			_u8g2->print(title + "-Page" + String(p + 1));
+			_u8g2->print(title);
 			_u8g2->drawVLine(125, 9, 56);
 
-			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-			_u8g2->setFontPosTop();
-			_u8g2->drawFrame(2, 11, 121, 13);
-			_u8g2->setCursor(12, 13); _u8g2->print(items[p]);
-			_u8g2->setFontPosBottom();
-			_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-			_u8g2->drawGlyph(3, 13 + 8, 129);
+			// 一屏显示 4 项（光标高亮 + 左侧图标）
+			for (int i = 0; i < VISIBLE; i++) {
+				int idx = offset + i;
+				if (idx >= count) break;
+				bool hl = (p == idx);
+				int y = 11 + i * 14;
+				_u8g2->drawFrame(2, y, 121, 13);
+				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+				_u8g2->setFontPosTop();
+				_u8g2->setCursor(12, y + 2);
+				_u8g2->print(items[idx]);
+				if (hl) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, y + 2 + 1 * 8, 129);
+				}
+			}
 		} while (_u8g2->nextPage());
 
 		if (upd) { delay(200); upd = false; }
