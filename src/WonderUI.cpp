@@ -687,3 +687,70 @@ bool WonderUI::check(String title, String line1, String line2, String line3, Str
 	}
 	return true;
 }
+
+//-------------------------------------------
+// 文本框：自动换行(10字/行)，4行/页，上下翻页
+//-------------------------------------------
+void WonderUI::textBox(String title, String text) {
+	const int CHARS_PER_LINE = 10;
+	const int LINES_PER_PAGE = 4;
+
+	// 1. 把 text 按 10 字/行 拆成数组
+	String lines[320];   // 最多 320 行（够 3200 字）
+	int totalLines = 0;
+	const char* raw = text.c_str();
+	int len = text.length();
+	int pos = 0;
+	while (pos < len && totalLines < 320) {
+		int chunk = len - pos;
+		if (chunk > CHARS_PER_LINE) chunk = CHARS_PER_LINE;
+		lines[totalLines] = text.substring(pos, pos + chunk);
+		pos += chunk;
+		totalLines++;
+	}
+	if (totalLines == 0) {
+		lines[0] = "";
+		totalLines = 1;
+	}
+
+	int totalPages = (totalLines + LINES_PER_PAGE - 1) / LINES_PER_PAGE;
+	int curPage = 0;
+
+	while (true) {
+		if (GetButton('U') && totalPages > 1) {
+			curPage--; if (curPage < 0) curPage = totalPages - 1;
+			delay(200);
+		} else if (GetButton('D') && totalPages > 1) {
+			curPage++; if (curPage >= totalPages) curPage = 0;
+			delay(200);
+		} else if (GetButton('O')) {
+			while (GetButton('O')) delay(10);
+			return;
+		} else if (GetButton('S')) {
+			while (GetButton('S')) delay(10);
+			return;
+		}
+
+		_u8g2->firstPage();
+		do {
+			// 标题栏
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0);
+			String titleBar = title + " [" + String(curPage + 1) + "/" + String(totalPages) + "]";
+			_u8g2->print(titleBar);
+			_u8g2->drawHLine(0, 9, 128);
+
+			// 内容：4 行，从 y=11 开始, 行距 13
+			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+			_u8g2->setFontPosTop();
+			int startLine = curPage * LINES_PER_PAGE;
+			for (int i = 0; i < LINES_PER_PAGE; i++) {
+				int idx = startLine + i;
+				if (idx >= totalLines) break;
+				_u8g2->setCursor(0, 11 + i * 13);
+				_u8g2->print(lines[idx]);
+			}
+		} while (_u8g2->nextPage());
+	}
+}

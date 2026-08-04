@@ -52,6 +52,10 @@ public:
 	// 数值上下调节（范围 minn ~ maxn）
 	int numericUpDown(int maxn, int minn, String title);
 	
+	// 文本框：显示长文本，自动换行(10字/行)，4行/页，上下键翻页，OK/Set退出
+	// 标题栏显示 "标题 [当前页/总页数]"
+	void textBox(String title, String text);
+	
 	// 确认/信息框，OK返回true，Set返回false
 	bool check(String title, String line1, String line2, String line3, String line4);
 	
