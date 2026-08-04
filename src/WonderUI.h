@@ -44,6 +44,10 @@ public:
 	// 不定长列表选择，返回选中的索引(0~count-1)，Set 退出返回 -1
 	// 用法: listchoose("标题", 3, "选项1", "选项2", "选项3")  （上限 8 项）
 	int listchoose(String title, int count, ...);
+
+	// 数组版列表选择（上限 20 项，一屏 4 项光标式），Set 退出返回 -1
+	// items 为 const char* 指针数组，count 为项数
+	int listchooseArr(const char* const* items, int count, const char* title);
 	
 	// 数值上下调节（范围 minn ~ maxn）
 	int numericUpDown(int maxn, int minn, String title);
