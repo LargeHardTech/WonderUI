@@ -1,4 +1,5 @@
 #include "WonderUI.h"
+#include "PyData.h"
 #include <stdarg.h>
 
 WonderUI::WonderUI(U8G2 &u8g2,
@@ -132,103 +133,182 @@ void WonderUI::start4() {
 }
 
 //-------------------------------------------
-// 字符输入键盘
+// 拼音查找：在 PY_DATA 中搜索匹配前缀的汉字
 //-------------------------------------------
-String WonderUI::input(int maxl) {
-	String otp = "";
-	int x = 0, y = 0;
-	bool caps = false;
-	
-	char a[4][10] = {
-		{'1','2','3','4','5','6','7','8','9','0'},
-		{'a','b','c','d','e','f','g','h','i','j'},
-		{'k','l','m','n','o','p','q','r','s','t'},
-		{'u','v','w','x','y','z',',','.','^','<'}
-	};
-	char b[4][10] = {
-		{'A','B','C','D','E','F','G','H','I','J'},
-		{'K','L','M','N','O','P','Q','R','S','T'},
-		{'U','V','W','X','Y','Z','?','!','(',')'},
-		{':','@','+','-','*','/','\'','"','^','<'}
-	};
-	
-	delay(200);
-	while (true) {
-		_u8g2->firstPage();
-		do {
-			_u8g2->drawFrame(1, 1, 127, 12);
-			_u8g2->setFont(u8g2_font_timR08_tf);
-			_u8g2->setFontPosTop();
-			_u8g2->setCursor(2, 2);
-			_u8g2->print(otp);
-			
-			_u8g2->setFont(u8g2_font_helvR12_tf);
-			_u8g2->setFontPosTop();
-			
-			if (!caps) {
-				for (int i = 0; i < 10; i++) {
-					for (int j = 0; j < 4; j++) {
-						_u8g2->setCursor(i * 12 + 3, 13 + j * 12);
-						_u8g2->print(a[j][i]);
-						if (i == x && j == y) {
-							_u8g2->drawFrame(i * 12 + 3, 13 + j * 12, 11, 14);
-						}
-					}
-				}
-			} else {
-				for (int i = 0; i < 10; i++) {
-					for (int j = 0; j < 4; j++) {
-						_u8g2->setCursor(i * 12 + 3, 13 + j * 12);
-						_u8g2->print(b[j][i]);
-						if (i == x && j == y) {
-							_u8g2->drawFrame(i * 12 + 3, 13 + j * 12, 11, 14);
-						}
-					}
-				}
-			}
-		} while (_u8g2->nextPage());
-		
-		bool flag = false;
-		if (GetButton('S')) {
-			while (GetButton('S')) delay(10);  // 等 SET 松手，避免残留触发下一界面
-			break;
-		} else if (GetButton('U')) {
-			y--;
-			if (y < 0) y = 3;
-			flag = true;
-		} else if (GetButton('D')) {
-			y++;
-			if (y >= 4) y = 0;
-			flag = true;
-		} else if (GetButton('L')) {
-			x--;
-			if (x < 0) x = 9;
-			flag = true;
-		} else if (GetButton('R')) {
-			x++;
-			if (x >= 10) x = 0;
-			flag = true;
-		} else if (GetButton('O')) {
-			flag = true;
-			if (a[y][x] == '^') {
-				caps = !caps;
-			} else if (a[y][x] == '<') {
-				otp = otp.substring(0, otp.length() - 1);
-			} else {
-				if (otp.length() <= maxl) {
-					otp += (caps ? b[y][x] : a[y][x]);
-				}
-			}
-		}
-		
-		if (flag) delay(200);
-	}
-	return otp;
+static String lookupPinyin(const String& prefix) {
+    if (prefix.length() == 0) return "";
+    String result;
+    for (int i = 0; i < PY_COUNT; i++) {
+        uint16_t off = PY_OFFSET[i];              // ESP32 flash 直接访问
+        char py[8];
+        int j = 0;
+        while (j < 7 && PY_DATA[off + j] != 0) {
+            py[j] = PY_DATA[off + j];
+            j++;
+        }
+        py[j] = 0;
+        if (String(py).startsWith(prefix)) {
+            off += j + 1;
+            uint16_t len = PY_CHARS[i];
+            for (int k = 0; k < len; k++)
+                result += (char)PY_DATA[off + k];
+        }
+    }
+    return result;
 }
 
 //-------------------------------------------
-// 数字输入键盘
+// 字符输入键盘
 //-------------------------------------------
+String WonderUI::input(int maxl) {
+    String otp = "";
+    String spel = "";
+    int x = 0, y = 0;
+    int mode = 0;            // 0=小写 1=大写 2=拼音
+    String pyCands = "";
+    int pyScroll = 0;
+
+    char a[4][10] = {
+        {'1','2','3','4','5','6','7','8','9','0'},
+        {'a','b','c','d','e','f','g','h','i','j'},
+        {'k','l','m','n','o','p','q','r','s','t'},
+        {'u','v','w','x','y','z',',','.','^','<'}
+    };
+    char b[4][10] = {
+        {'A','B','C','D','E','F','G','H','I','J'},
+        {'K','L','M','N','O','P','Q','R','S','T'},
+        {'U','V','W','X','Y','Z','?','!','(',')'},
+        {':','@','+','-','*','/','\'','"','^','<'}
+    };
+    char pl[3][10] = {
+        {'a','b','c','d','e','f','g','h','i','j'},
+        {'k','l','m','n','o','p','q','r','s','t'},
+        {'u','v','w','x','y','z',1,2,3,4}
+    };
+
+    delay(200);
+    while (true) {
+        String display = otp;
+        if (mode == 2) display += spel;
+
+        _u8g2->firstPage();
+        do {
+            _u8g2->drawFrame(1, 1, 127, 13);
+            _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+            _u8g2->setFontPosTop();
+            _u8g2->setCursor(2, 3);
+            _u8g2->print(display);
+
+            // 键盘用 wqy12 字体（已在上面设置）
+            _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+            _u8g2->setFontPosTop();
+
+            if (mode < 2) {
+                for (int i = 0; i < 10; i++) {
+                    for (int j = 0; j < 4; j++) {
+                        _u8g2->setCursor(i * 12 + 3, 14 + j * 12);
+                        char ch = (mode == 0) ? a[j][i] : b[j][i];
+                        _u8g2->print(ch);
+                        if (i == x && j == y)
+                            _u8g2->drawFrame(i * 12 + 3, 14 + j * 12, 11, 14);
+                    }
+                }
+            } else {
+                int totalChars = pyCands.length() / 3;
+                for (int i = 0; i < 10; i++) {
+                    _u8g2->setCursor(i * 12 + 3, 16);
+                    int ci = pyScroll + i;
+                    if (ci < totalChars) {
+                        int start = ci * 3;
+                        if (start + 3 <= pyCands.length())
+                            _u8g2->print(pyCands.substring(start, start + 3));
+                    }
+                    if (y == 0 && i == x)
+                        _u8g2->drawFrame(i * 12 + 3, 16, 11, 14);
+                }
+                for (int j = 1; j <= 3; j++) {
+                    for (int i = 0; i < 10; i++) {
+                        _u8g2->setCursor(i * 12 + 3, 14 + j * 12);
+                        char ch = pl[j-1][i];
+                        if (ch == 1) _u8g2->print("\xE3\x80\x82");         // 。
+                        else if (ch == 2) _u8g2->print("\xEF\xBC\x8C");     // ，
+                        else if (ch == 3) _u8g2->print("^");
+                        else if (ch == 4) _u8g2->print("<");
+                        else { char s[2] = {ch, 0}; _u8g2->print(s); }
+                        if (y == j && i == x)
+                            _u8g2->drawFrame(i * 12 + 3, 14 + j * 12, 11, 14);
+                    }
+                }
+            }
+        } while (_u8g2->nextPage());
+
+        bool flag = false;
+        if (GetButton('S')) {
+            while (GetButton('S')) delay(10);
+            if (mode == 2 && pyCands.length() > 0 && y == 0) {
+                mode = 0; spel = ""; pyCands = ""; pyScroll = 0; x = 0; y = 0;
+            } else break;
+        } else if (GetButton('O')) {
+            while (GetButton('O')) delay(10);
+            flag = true;
+            if (mode == 2 && y == 0) {
+                int totalChars = pyCands.length() / 3;
+                int ci = pyScroll + x;
+                if (ci < totalChars) {
+                    int start = ci * 3;
+                    if (start + 3 <= pyCands.length()) {
+                        otp += pyCands.substring(start, start + 3);
+                    }
+                }
+                spel = ""; pyCands = ""; pyScroll = 0; x = 0; y = 0;
+            } else if (mode < 2) {
+                char ch = (mode == 0) ? a[y][x] : b[y][x];
+                if (ch == '^') {
+                    int oldMode = mode;
+                    mode = (mode + 1) % 3;
+                    if (mode == 2 || oldMode == 2) { x = 0; y = 0; }  // 进出拼音才重置
+                    spel = ""; pyCands = ""; pyScroll = 0;
+                }
+                else if (ch == '<') otp = otp.substring(0, otp.length() - 1);
+                else if (otp.length() < maxl * 3) otp += ch;  // maxl 按字符数，UTF-8 中文 3 字节/字
+            } else if (y > 0) {
+                int row = y - 1;
+                int mi = pl[row][x];
+                if (mi == 3) { mode = 0; x = 0; y = 0; spel = ""; pyCands = ""; pyScroll = 0; }
+                else if (mi == 4) {
+                    if (spel.length() > 0) {
+                        spel = spel.substring(0, spel.length() - 1);
+                        pyCands = lookupPinyin(spel); pyScroll = 0;
+                    } else if (otp.length() > 0) {
+                        // 无拼音 → 删 otp 最后一个字符（中文3字节，ASCII 1字节）
+                        int n = 1;
+                        if (otp.length() >= 3) {
+                            char last = otp[otp.length() - 1];
+                            if ((last & 0x80) != 0) n = 3;  // UTF-8 tail byte → 中文 3 字节
+                        }
+                        otp = otp.substring(0, otp.length() - n);
+                    }
+                } else if (mi == 1) otp += "\xEF\xBC\x8C";
+                else if (mi == 2) otp += "\xE3\x80\x82";
+                else { spel += (char)mi; pyCands = lookupPinyin(spel); pyScroll = 0; }
+            }
+        } else if (GetButton('U')) { y--; if (y < 0) y = (mode == 2 ? 3 : 3); flag = true; }
+        else if (GetButton('D')) { y++; if (y > (mode == 2 ? 3 : 3)) y = 0; flag = true; }
+        else if (GetButton('L')) {
+            x--; if (x < 0) {
+                if (mode == 2 && y == 0) { if (pyScroll > 0) { pyScroll -= 10; if (pyScroll < 0) pyScroll = 0; x = 0; } else x = 9; }
+                else x = 9;
+            } flag = true;
+        } else if (GetButton('R')) {
+            x++; if (x >= 10) {
+                if (mode == 2 && y == 0) { int maxC = pyCands.length() / 3; if (pyScroll + 10 < maxC) { pyScroll += 10; x = 0; } else x = 9; }
+                else x = 0;
+            } flag = true;
+        }
+        if (flag) delay(200);
+    }
+    return otp;
+}
 String WonderUI::inputnum(int maxl, char base) {
 	String otp = "";
 	int x = 0, y = 0;
