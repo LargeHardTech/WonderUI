@@ -62,16 +62,20 @@ public:
 	// 读取按钮状态（按下为true，低电平有效）
 	// 'U'/'D'/'L'/'R'/'O'/'S' 对应 上下左右OK/SET
 	bool GetButton(char x);
-	
+
 private:
 	U8G2 *_u8g2;
 	uint8_t _pinU, _pinD, _pinL, _pinR, _pinO, _pinS;
-	
+
 	// 开机动画辅助函数
 	void start1(int y);
 	void start2(int x, int b);
 	void start3();
 	void start4();
 };
+
+// ---- 全局按键音回调（app 注册，OK=la 'f', SET=do 'a'）----
+typedef void (*KeySoundFn)(char note);
+extern KeySoundFn keySoundCb;
 
 #endif

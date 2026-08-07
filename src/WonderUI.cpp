@@ -38,18 +38,30 @@ void WonderUI::configureButtons(uint8_t pinU, uint8_t pinD, uint8_t pinL,
 	pinMode(_pinO, INPUT_PULLUP);
 	pinMode(_pinS, INPUT_PULLUP);
 }
-bool WonderUI::GetButton(char x) {
-	switch (x) {
-		case 'U': return !digitalRead(_pinU);
-		case 'D': return !digitalRead(_pinD);
-		case 'L': return !digitalRead(_pinL);
-		case 'R': return !digitalRead(_pinR);
-		case 'O': return !digitalRead(_pinO);
-		case 'S': return !digitalRead(_pinS);
-	}
-	return false;
-}
+// ---- 全局按键音回调（app 注册） ----
+KeySoundFn keySoundCb = nullptr;
 
+bool WonderUI::GetButton(char x) {
+	bool pressed;
+	switch (x) {
+		case 'U': pressed = !digitalRead(_pinU); break;
+		case 'D': pressed = !digitalRead(_pinD); break;
+		case 'L': pressed = !digitalRead(_pinL); break;
+		case 'R': pressed = !digitalRead(_pinR); break;
+		case 'O': pressed = !digitalRead(_pinO); break;
+		case 'S': pressed = !digitalRead(_pinS); break;
+		default: return false;
+	}
+	// 边沿触发按键音（OK=la, SET=do）
+	if (x == 'O' || x == 'S') {
+		static bool prevO = false, prevS = false;
+		if (x == 'O' && pressed && !prevO && keySoundCb) keySoundCb('f');
+		if (x == 'S' && pressed && !prevS && keySoundCb) keySoundCb('a');
+		if (x == 'O') prevO = pressed;
+		if (x == 'S') prevS = pressed;
+	}
+	return pressed;
+}
 //-------------------------------------------
 // 开机动画
 //-------------------------------------------
@@ -772,28 +784,34 @@ bool WonderUI::check(String title, String line1, String line2, String line3, Str
 // 文本框：自动换行(10字/行)，4行/页，上下翻页
 //-------------------------------------------
 void WonderUI::textBox(String title, String text) {
-	const int CHARS_PER_LINE = 10;
-	const int LINES_PER_PAGE = 4;
+	const int LINE_WIDTH  = 20;  // 每行 20 单位宽（英文=1, 中文=2）
+	const int CH_PER_PAGE  = 4;
 
-	// 1. 把 text 按 10 字/行 拆成数组
-	String lines[320];   // 最多 320 行（够 3200 字）
+	// 1. 按显示宽度拆行（中文 2 单位, 英文 1 单位, 满 20 换行）
+	String lines[320];
 	int totalLines = 0;
 	const char* raw = text.c_str();
 	int len = text.length();
-	int pos = 0;
-	while (pos < len && totalLines < 320) {
-		int chunk = len - pos;
-		if (chunk > CHARS_PER_LINE) chunk = CHARS_PER_LINE;
-		lines[totalLines] = text.substring(pos, pos + chunk);
-		pos += chunk;
-		totalLines++;
+	int bytePos = 0;
+	while (bytePos < len && totalLines < 320) {
+		int lineStart = bytePos;
+		int lineWidth = 0;
+		while (bytePos < len) {
+			unsigned char c = raw[bytePos];
+			int charW = (c > 0x7F) ? 2 : 1;   // 中文宽 2, ASCII 宽 1
+			int charBytes = (c > 0x7F) ? 3 : 1;  // UTF-8: 中文 3 字节, ASCII 1 字节
+			if (lineWidth + charW > LINE_WIDTH) break;
+			lineWidth += charW;
+			bytePos += charBytes;
+		}
+		lines[totalLines++] = text.substring(lineStart, bytePos);
 	}
 	if (totalLines == 0) {
 		lines[0] = "";
 		totalLines = 1;
 	}
 
-	int totalPages = (totalLines + LINES_PER_PAGE - 1) / LINES_PER_PAGE;
+	int totalPages = (totalLines + CH_PER_PAGE - 1) / CH_PER_PAGE;
 	int curPage = 0;
 
 	while (true) {
@@ -824,8 +842,8 @@ void WonderUI::textBox(String title, String text) {
 			// 内容：4 行，从 y=11 开始, 行距 13
 			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 			_u8g2->setFontPosTop();
-			int startLine = curPage * LINES_PER_PAGE;
-			for (int i = 0; i < LINES_PER_PAGE; i++) {
+			int startLine = curPage * CH_PER_PAGE;
+			for (int i = 0; i < CH_PER_PAGE; i++) {
 				int idx = startLine + i;
 				if (idx >= totalLines) break;
 				_u8g2->setCursor(0, 11 + i * 13);
