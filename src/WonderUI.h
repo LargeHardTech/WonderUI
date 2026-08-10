@@ -33,7 +33,8 @@ public:
 	String input(int maxl, const String& init = "");
 	
 	// 数字输入（maxl: 最大长度, base: 'D' 大键盘, 'B' 二值横条）
-	String inputnum(int maxl, char base);
+	// 数字输入（maxl: 最大长度, base: 'D' 大键盘, 'B' 二值横条, init: 初始文本=""）
+	String inputnum(int maxl, char base, const String& init = "");
 	
 	// 四选项列表选择，返回选中的索引(0~3)
 	int listchoose4(String x, String y, String z, String a, String title);
