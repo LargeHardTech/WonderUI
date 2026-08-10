@@ -172,8 +172,21 @@ static String lookupPinyin(const String& prefix) {
 //-------------------------------------------
 // 字符输入键盘
 //-------------------------------------------
-String WonderUI::input(int maxl) {
-    String otp = "";
+// ---- 字符串可视宽度（中文 12px, ASCII 6px）----
+static int visualWidth(const String& s, int fontW = 12) {
+    int w = 0;
+    for (int i = 0; i < (int)s.length(); ) {
+        unsigned char c = s[i];
+        if (c > 0x7F) { w += fontW; i += 3; }
+        else { w += fontW / 2; i += 1; }
+    }
+    return w;
+}
+
+String WonderUI::input(int maxl, const String& init) {
+    String otp = init;
+    // 确保多字节 offset 在 sprint 内
+    while (otp.length() > (unsigned)maxl * 3) otp = otp.substring(0, otp.length() - 1);
     String spel = "";
     int x = 0, y = 0;
     int mode = 0;            // 0=小写 1=大写 2=拼音
@@ -208,7 +221,10 @@ String WonderUI::input(int maxl) {
             _u8g2->drawFrame(1, 1, 127, 13);
             _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
             _u8g2->setFontPosTop();
-            _u8g2->setCursor(2, 3);
+            int vw = visualWidth(display);
+            int sx = 0;
+            if (vw > 122) sx = vw - 122;  // 超宽就滚
+            _u8g2->setCursor(2 - sx, 3);
             _u8g2->print(display);
 
             // 键盘用 wqy12 字体（已在上面设置）
@@ -321,8 +337,10 @@ String WonderUI::input(int maxl) {
     }
     return otp;
 }
-String WonderUI::inputnum(int maxl, char base) {
-	String otp = "";
+String WonderUI::inputnum(int maxl, char base, const String& init) {
+	String otp = init;
+	// 确保不超限
+	while (otp.length() > (unsigned)maxl) otp = otp.substring(0, otp.length() - 1);
 	int x = 0, y = 0;
 	delay(200);
 	
@@ -334,11 +352,13 @@ String WonderUI::inputnum(int maxl, char base) {
 		while (true) {
 			_u8g2->firstPage();
 			do {
-				_u8g2->drawFrame(1, 1, 127, 12);
-				_u8g2->setFont(u8g2_font_timR08_tf);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(2, 2);
-				_u8g2->print(otp);
+			_u8g2->drawFrame(1, 1, 127, 12);
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			int nsx = otp.length() * 8;
+			if (nsx > 122) nsx = nsx - 122; else nsx = 0;
+			_u8g2->setCursor(2 - nsx, 2);
+			_u8g2->print(otp);
 				_u8g2->setFont(u8g2_font_helvB24_tf);
 				_u8g2->setFontPosTop();
 				for (int i = 0; i < 6; i++) {
@@ -371,11 +391,13 @@ String WonderUI::inputnum(int maxl, char base) {
 		while (true) {
 			_u8g2->firstPage();
 			do {
-				_u8g2->drawFrame(1, 1, 127, 12);
-				_u8g2->setFont(u8g2_font_timR08_tf);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(2, 2);
-				_u8g2->print(otp);
+			_u8g2->drawFrame(1, 1, 127, 12);
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			int nsx = otp.length() * 8;
+			if (nsx > 122) nsx = nsx - 122; else nsx = 0;
+			_u8g2->setCursor(2 - nsx, 2);
+			_u8g2->print(otp);
 				_u8g2->setFont(u8g2_font_helvB24_tf);
 				_u8g2->setFontPosTop();
 				for (int i = 0; i < 4; i++) {

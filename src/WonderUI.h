@@ -29,8 +29,8 @@ public:
 	// 开机动画
 	void start();
 	
-	// 字符输入（最大长度）
-	String input(int maxl);
+	// 字符输入（最大长度, 初始文本=""）
+	String input(int maxl, const String& init = "");
 	
 	// 数字输入（maxl: 最大长度, base: 'D' 大键盘, 'B' 二值横条）
 	String inputnum(int maxl, char base);
