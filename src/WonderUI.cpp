@@ -316,8 +316,8 @@ String WonderUI::input(int maxl, const String& init) {
                         }
                         otp = otp.substring(0, otp.length() - n);
                     }
-                } else if (mi == 1) otp += "\xEF\xBC\x8C";
-                else if (mi == 2) otp += "\xE3\x80\x82";
+                } else if (mi == 1) otp += "\xE3\x80\x82";   // 。（与渲染一致，原为逗号，反了）
+                else if (mi == 2) otp += "\xEF\xBC\x8C";     // ，（与渲染一致，原为句号，反了）
                 else { spel += (char)mi; pyCands = lookupPinyin(spel); pyScroll = 0; }
             }
         } else if (GetButton('U')) { y--; if (y < 0) y = (mode == 2 ? 3 : 3); flag = true; }
