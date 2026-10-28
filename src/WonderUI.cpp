@@ -1,6 +1,7 @@
 #include "WonderUI.h"
 #include "PyData.h"
 #include <stdarg.h>
+#include <math.h>
 
 WonderUI::WonderUI(U8G2 &u8g2,
 				   uint8_t pinU, uint8_t pinD, uint8_t pinL,
@@ -725,22 +726,36 @@ int WonderUI::listchoose(String title, int count, ...) {
 	}
 	va_end(args);
 
-	int p = 0;        // 当前选中项
-	int offset = 0;   // 可视区顶部起始项（超过 4 项时滚动）
+	int   p      = 0;         // 当前选中项
+	int   offset = 0;         // 逻辑可视区顶部
+	float scroll = 0.0f;      // 平滑滚动位置（单位：项）
+	float focus  = 0.0f;      // 平滑光标位置（单位：项）
 	const int VISIBLE = 4;
-	bool upd = false;
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 150;   // 按键冷却，长按可连续滚动
 
 	while (true) {
-		if (GetButton('D')) { p++; if (p >= count) p = 0; upd = true; }
-		else if (GetButton('U')) { p--; if (p < 0) p = count - 1; upd = true; }
-		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
-		else if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+		unsigned long now = millis();
 
-		// 滚动：选中项越出可视区时平移
+		// ---- 按键 ----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('D')) { p++; if (p >= count) p = 0; lastKey = now; }
+			else if (GetButton('U')) { p--; if (p < 0) p = count - 1; lastKey = now; }
+		}
+		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
+		if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+
+		// ---- 可视区目标（选中项越出时平移）----
 		if (p < offset) offset = p;
 		else if (p >= offset + VISIBLE) offset = p - VISIBLE + 1;
 		if (offset > count - VISIBLE) offset = count - VISIBLE;
 		if (offset < 0) offset = 0;
+
+		// ---- 动画核心：scroll / focus 每帧向目标逼近（ease-out 手感）----
+		scroll += ((float)offset - scroll) * 0.35f;
+		if (fabsf((float)offset - scroll) < 0.02f) scroll = (float)offset;
+		focus  += ((float)p - focus) * 0.35f;
+		if (fabsf((float)p - focus) < 0.02f) focus = (float)p;
 
 		_u8g2->firstPage();
 		do {
@@ -751,26 +766,31 @@ int WonderUI::listchoose(String title, int count, ...) {
 			_u8g2->print(title);
 			_u8g2->drawVLine(125, 9, 56);
 
-			// 一屏显示 4 项（光标高亮 + 左侧图标）
-			for (int i = 0; i < VISIBLE; i++) {
-				int idx = offset + i;
-				if (idx >= count) break;
-				bool hl = (p == idx);
-				int y = 11 + i * 14;
+			// 列表：按 scroll 连续偏移绘制（上下各多画一项，过渡时无缝）
+			int base = (int)floorf(scroll);
+			for (int i = -1; i <= VISIBLE; i++) {
+				int idx = base + i;
+				if (idx < 0 || idx >= count) continue;
+				int y = 11 + (int)((idx - scroll) * 14.0f);
+				if (y < 9 || y > 55) continue;            // 裁剪出可视区
 				_u8g2->drawFrame(2, y, 121, 13);
 				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 				_u8g2->setFontPosTop();
 				_u8g2->setCursor(12, y + 2);
 				_u8g2->print(items[idx]);
-				if (hl) {
+			}
+			// 光标：按 focus 平滑位置单独绘制（滑过去而不是瞬移）
+			{
+				int hy = 11 + (int)((focus - scroll) * 14.0f);
+				if (hy >= 9 && hy <= 55) {
 					_u8g2->setFontPosBottom();
 					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, y + 2 + 1 * 8, 129);
+					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
 				}
 			}
 		} while (_u8g2->nextPage());
 
-		if (upd) { delay(200); upd = false; }
+		delay(10);   // 动画帧间隔
 	}
 	return -1;
 }
@@ -783,22 +803,36 @@ int WonderUI::listchooseArr(const char* const* items, int count, const char* tit
 	if (count < 1 || items == NULL) return -1;
 	if (count > MAX) count = MAX;
 
-	int p = 0;        // 当前选中项
-	int offset = 0;   // 可视区顶部起始项（超过 4 项时滚动）
+	int   p      = 0;         // 当前选中项
+	int   offset = 0;         // 逻辑可视区顶部
+	float scroll = 0.0f;      // 平滑滚动位置（单位：项）
+	float focus  = 0.0f;      // 平滑光标位置（单位：项）
 	const int VISIBLE = 4;
-	bool upd = false;
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 150;
 
 	while (true) {
-		if (GetButton('D')) { p++; if (p >= count) p = 0; upd = true; }
-		else if (GetButton('U')) { p--; if (p < 0) p = count - 1; upd = true; }
-		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
-		else if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+		unsigned long now = millis();
 
-		// 滚动：选中项越出可视区时平移
+		// ---- 按键（冷却，长按连续滚）----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('D')) { p++; if (p >= count) p = 0; lastKey = now; }
+			else if (GetButton('U')) { p--; if (p < 0) p = count - 1; lastKey = now; }
+		}
+		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
+		if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+
+		// ---- 可视区目标 ----
 		if (p < offset) offset = p;
 		else if (p >= offset + VISIBLE) offset = p - VISIBLE + 1;
 		if (offset > count - VISIBLE) offset = count - VISIBLE;
 		if (offset < 0) offset = 0;
+
+		// ---- 动画：平滑逼近 ----
+		scroll += ((float)offset - scroll) * 0.35f;
+		if (fabsf((float)offset - scroll) < 0.02f) scroll = (float)offset;
+		focus  += ((float)p - focus) * 0.35f;
+		if (fabsf((float)p - focus) < 0.02f) focus = (float)p;
 
 		_u8g2->firstPage();
 		do {
@@ -809,26 +843,31 @@ int WonderUI::listchooseArr(const char* const* items, int count, const char* tit
 			_u8g2->print(title);
 			_u8g2->drawVLine(125, 9, 56);
 
-			// 一屏显示 4 项（光标高亮 + 左侧图标）
-			for (int i = 0; i < VISIBLE; i++) {
-				int idx = offset + i;
-				if (idx >= count) break;
-				bool hl = (p == idx);
-				int y = 11 + i * 14;
+			// 列表：按 scroll 连续偏移绘制
+			int base = (int)floorf(scroll);
+			for (int i = -1; i <= VISIBLE; i++) {
+				int idx = base + i;
+				if (idx < 0 || idx >= count) continue;
+				int y = 11 + (int)((idx - scroll) * 14.0f);
+				if (y < 9 || y > 55) continue;
 				_u8g2->drawFrame(2, y, 121, 13);
 				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 				_u8g2->setFontPosTop();
 				_u8g2->setCursor(12, y + 2);
 				_u8g2->print(items[idx] ? items[idx] : "");
-				if (hl) {
+			}
+			// 光标：按 focus 平滑位置绘制
+			{
+				int hy = 11 + (int)((focus - scroll) * 14.0f);
+				if (hy >= 9 && hy <= 55) {
 					_u8g2->setFontPosBottom();
 					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, y + 2 + 1 * 8, 129);
+					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
 				}
 			}
 		} while (_u8g2->nextPage());
 
-		if (upd) { delay(200); upd = false; }
+		delay(10);
 	}
 	return -1;
 }
@@ -947,21 +986,37 @@ void WonderUI::textBox(String title, String text) {
 
 	int totalPages = (totalLines + CH_PER_PAGE - 1) / CH_PER_PAGE;
 	int curPage = 0;
+	float slide = 0.0f;                     // 翻页滑动偏移（px），每帧向 0 收敛
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 150;
 
 	while (true) {
-		if (GetButton('U') && totalPages > 1) {
-			curPage--; if (curPage < 0) curPage = totalPages - 1;
-			delay(200);
-		} else if (GetButton('D') && totalPages > 1) {
-			curPage++; if (curPage >= totalPages) curPage = 0;
-			delay(200);
-		} else if (GetButton('O')) {
+		unsigned long now = millis();
+
+		// ---- 翻页（冷却 + 设定滑入方向）----
+		if (totalPages > 1 && now - lastKey > KEY_COOL) {
+			if (GetButton('U')) {
+				curPage--; if (curPage < 0) curPage = totalPages - 1;
+				slide = -13.0f;              // 上翻：内容从上方滑入
+				lastKey = now;
+			} else if (GetButton('D')) {
+				curPage++; if (curPage >= totalPages) curPage = 0;
+				slide = 13.0f;               // 下翻：内容从下方滑入
+				lastKey = now;
+			}
+		}
+		if (GetButton('O')) {
 			while (GetButton('O')) delay(10);
 			return;
-		} else if (GetButton('S')) {
+		}
+		if (GetButton('S')) {
 			while (GetButton('S')) delay(10);
 			return;
 		}
+
+		// ---- 滑动回位（ease-out）----
+		slide += (0.0f - slide) * 0.35f;
+		if (fabsf(slide) < 0.3f) slide = 0.0f;
 
 		_u8g2->firstPage();
 		do {
@@ -973,16 +1028,20 @@ void WonderUI::textBox(String title, String text) {
 			_u8g2->print(titleBar);
 			_u8g2->drawHLine(0, 9, 128);
 
-			// 内容：4 行，从 y=11 开始, 行距 13
+			// 内容：按 slide 偏移绘制，上下各多画一行保证过渡无缝
 			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 			_u8g2->setFontPosTop();
 			int startLine = curPage * CH_PER_PAGE;
-			for (int i = 0; i < CH_PER_PAGE; i++) {
+			for (int i = -1; i <= CH_PER_PAGE; i++) {
 				int idx = startLine + i;
-				if (idx >= totalLines) break;
-				_u8g2->setCursor(0, 11 + i * 13);
+				if (idx < 0 || idx >= totalLines) continue;
+				int y = 11 + (int)(i * 13 + slide);
+				if (y < 9 || y > 58) continue;         // 裁剪
+				_u8g2->setCursor(0, y);
 				_u8g2->print(lines[idx]);
 			}
 		} while (_u8g2->nextPage());
+
+		delay(10);
 	}
 }
