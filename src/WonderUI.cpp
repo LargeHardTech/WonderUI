@@ -118,6 +118,118 @@ void WonderUI::start() {
 	} while (_u8g2->nextPage());
 }
 
+//-------------------------------------------
+// 启动动画2：打字机式
+//   ① 光标竖线从屏幕上方二次方缓动（越落越快）落到文字行
+//   ② 向左移到打字起点（ease-in-out）
+//   ③ 闪两下
+//   ④ 逐字打出 "WonderU"（每字符后光标右移一个字符宽）
+//   ⑤ U 右侧光标再闪两下 → 常亮（视觉上充当 "UI" 的 "I"）
+//   ⑥ 定格后函数返回
+//-------------------------------------------
+void WonderUI::startTypewriter() {
+	const int   TEXT_Y   = 23;              // 文字顶部 y（屏幕视觉中心）
+	const int   CUR_W    = 4;               // 光标宽 px（原 2，加宽 2）
+	const int   CUR_H    = 20;              // 光标高 px（原 18，向下伸长 2）
+	const int   CUR_DY   = 3;               // 光标相对文字基线下移 px
+	const int   X_DROP   = 64;              // 下落起始 x（屏幕中线）
+	const char* TEXT     = "WonderU";       // 最后光标常亮充当 I，视觉为 "WonderUI"
+	const int   TEXT_LEN = 7;
+
+	_u8g2->setFont(u8g2_font_helvB18_tf);
+	_u8g2->setFontPosTop();
+
+	// 预计算每个字符的 x（光标落点 = 已打字符总宽）
+	// 居中基准仍用原光标宽 2，再整体左移 5px（所有元素统一左移）
+	int charX[TEXT_LEN + 1];
+	charX[0] = (_u8g2->getDisplayWidth() - _u8g2->getStrWidth("WonderU") - 2) / 2 - 5;
+	for (int i = 0; i < TEXT_LEN; i++) {
+		char s[2] = { TEXT[i], 0 };
+		charX[i + 1] = charX[i] + _u8g2->getStrWidth(s);
+	}
+
+	// 时间轴（ms）
+	const unsigned long D_DROP    = 400;    // 下落
+	const unsigned long D_MOVE    = 350;    // 左移
+	const unsigned long D_BLINK   = 480;    // 闪两下（亮120灭120 循环）
+	const unsigned long D_FIRST   = 200;    // 首字符前的停顿
+	const unsigned long D_TYPE    = 120;    // 每字符间隔
+	const unsigned long D_BLINK2  = 480;    // U 后闪两下
+	const unsigned long D_HOLD    = 600;    // 常亮定格
+	const unsigned long T_MOVE_END  = D_DROP + D_MOVE;
+	const unsigned long T_BLINK_END = T_MOVE_END + D_BLINK;
+	const unsigned long T_TYPE_END  = T_BLINK_END + D_FIRST + D_TYPE * (TEXT_LEN - 1);
+	const unsigned long T_BLINK2_END = T_TYPE_END + D_BLINK2;
+	const unsigned long T_END        = T_BLINK2_END + D_HOLD;
+
+	unsigned long t0 = millis();
+	while (true) {
+		unsigned long t = millis() - t0;
+		if (t >= T_END) break;
+
+		int  curX, curY;
+		bool curVisible = true;
+		int  shown = 0;                      // 已打出的字符数
+
+		if (t < D_DROP) {
+			// ① 下落：二次方缓动 y = y0 + dy·p²（越落越快），从屏幕外开始
+			float p = (float)t / D_DROP;
+			curX = X_DROP;
+			curY = -(CUR_H + CUR_DY) + (int)((TEXT_Y + CUR_H + CUR_DY) * p * p);
+		}
+		else if (t < T_MOVE_END) {
+			// ② 左移：ease-in-out quad
+			float p = (float)(t - D_DROP) / D_MOVE;
+			float e = p < 0.5f ? 2 * p * p : 1 - (-2 * p + 2) * (-2 * p + 2) / 2;
+			curX = X_DROP + (int)((charX[0] - X_DROP) * e);
+			curY = TEXT_Y;
+		}
+		else if (t < T_BLINK_END) {
+			// ③ 闪两下
+			curX = charX[0]; curY = TEXT_Y;
+			curVisible = (((t - T_MOVE_END) / 120) % 2) == 0;
+		}
+		else if (t < T_TYPE_END) {
+			// ④ 逐字打出：首字符 200ms，之后每 120ms 一个
+			unsigned long tt = t - T_BLINK_END;
+			if (tt >= D_FIRST) {
+				int n = 1 + (int)((tt - D_FIRST) / D_TYPE);
+				if (n > TEXT_LEN) n = TEXT_LEN;
+				shown = n;
+			}
+			curX = charX[shown]; curY = TEXT_Y;
+		}
+		else if (t < T_BLINK2_END) {
+			// ⑤ U 右侧闪两下
+			shown = TEXT_LEN;
+			curX = charX[TEXT_LEN]; curY = TEXT_Y;
+			curVisible = (((t - T_TYPE_END) / 120) % 2) == 0;
+		}
+		else {
+			// ⑥ 常亮定格
+			shown = TEXT_LEN;
+			curX = charX[TEXT_LEN]; curY = TEXT_Y;
+		}
+
+		// 绘制一帧（firstPage/nextPage 自动清缓冲）
+		_u8g2->firstPage();
+		do {
+			_u8g2->setFont(u8g2_font_helvB18_tf);
+			_u8g2->setFontPosTop();
+			for (int i = 0; i < shown; i++) {
+				char s[2] = { TEXT[i], 0 };
+				_u8g2->setCursor(charX[i], TEXT_Y);
+				_u8g2->print(s);
+			}
+			if (curVisible) {
+				_u8g2->drawBox(curX, curY + CUR_DY, CUR_W, CUR_H);
+			}
+		} while (_u8g2->nextPage());
+
+		delay(2);
+	}
+}
+
 void WonderUI::start1(int y) {
 	_u8g2->setFont(u8g2_font_timR08_tf);
 	_u8g2->setFontPosTop();

@@ -28,6 +28,9 @@ public:
 						  uint8_t pinR, uint8_t pinO, uint8_t pinS);
 	// 开机动画
 	void start();
+	// 开机动画2：打字机式（光标从上方二次方缓动落入 → 左移 → 闪两下 → 逐字打出
+	// "WonderU"，最后光标常亮充当 "UI" 的 "I"，视觉呈现 "WonderUI"）
+	void startTypewriter();
 	
 	// 字符输入（最大长度, 初始文本=""）
 	String input(int maxl, const String& init = "");
