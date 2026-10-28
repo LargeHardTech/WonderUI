@@ -303,6 +303,9 @@ String WonderUI::input(int maxl, const String& init) {
     String spel = "";
     int x = 0, y = 0;
     int mode = 0;            // 0=小写 1=大写 2=拼音
+    float fx = 0.0f, fy = 0.0f;                 // 平滑光标位置（动画）
+    unsigned long lastKey = 0;
+    const unsigned long KEY_COOL = 130;         // 方向键冷却，长按可连续移动
     String pyCands = "";
     int pyScroll = 0;
 
@@ -326,6 +329,12 @@ String WonderUI::input(int maxl, const String& init) {
 
     delay(200);
     while (true) {
+        // ---- 平滑光标逼近目标格（动画核心）----
+        fx += ((float)x - fx) * 0.35f;
+        if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
+        fy += ((float)y - fy) * 0.35f;
+        if (fabsf((float)y - fy) < 0.02f) fy = (float)y;
+
         String display = otp;
         if (mode == 2) display += spel;
 
@@ -350,8 +359,6 @@ String WonderUI::input(int maxl, const String& init) {
                         _u8g2->setCursor(i * 12 + 3, 14 + j * 12);
                         char ch = (mode == 0) ? a[j][i] : b[j][i];
                         _u8g2->print(ch);
-                        if (i == x && j == y)
-                            _u8g2->drawFrame(i * 12 + 3, 14 + j * 12, 11, 14);
                     }
                 }
             } else {
@@ -364,8 +371,6 @@ String WonderUI::input(int maxl, const String& init) {
                         if (start + 3 <= pyCands.length())
                             _u8g2->print(pyCands.substring(start, start + 3));
                     }
-                    if (y == 0 && i == x)
-                        _u8g2->drawFrame(i * 12 + 3, 16, 11, 14);
                 }
                 for (int j = 1; j <= 3; j++) {
                     for (int i = 0; i < 10; i++) {
@@ -376,14 +381,22 @@ String WonderUI::input(int maxl, const String& init) {
                         else if (ch == 3) _u8g2->print("^");
                         else if (ch == 4) _u8g2->print("<");
                         else { char s[2] = {ch, 0}; _u8g2->print(s); }
-                        if (y == j && i == x)
-                            _u8g2->drawFrame(i * 12 + 3, 14 + j * 12, 11, 14);
                     }
                 }
+            }
+
+            // 平滑光标框（三种模式统一，画在字符之上；滑过去而不是瞬移）
+            {
+                int hlx = 3 + (int)(fx * 12);
+                int hly;
+                if (mode < 2) hly = 14 + (int)(fy * 12);
+                else          hly = (fy < 0.5f) ? 16 : 14 + (int)(fy * 12);
+                _u8g2->drawFrame(hlx, hly, 11, 14);
             }
         } while (_u8g2->nextPage());
 
         bool flag = false;
+        unsigned long now = millis();
         if (GetButton('S')) {
             while (GetButton('S')) delay(10);
             if (mode == 2 && pyCands.length() > 0 && y == 0) {
@@ -433,20 +446,22 @@ String WonderUI::input(int maxl, const String& init) {
                 else if (mi == 2) otp += "\xEF\xBC\x8C";     // ，（与渲染一致，原为句号，反了）
                 else { spel += (char)mi; pyCands = lookupPinyin(spel); pyScroll = 0; }
             }
-        } else if (GetButton('U')) { y--; if (y < 0) y = (mode == 2 ? 3 : 3); flag = true; }
-        else if (GetButton('D')) { y++; if (y > (mode == 2 ? 3 : 3)) y = 0; flag = true; }
-        else if (GetButton('L')) {
-            x--; if (x < 0) {
-                if (mode == 2 && y == 0) { if (pyScroll > 0) { pyScroll -= 10; if (pyScroll < 0) pyScroll = 0; x = 0; } else x = 9; }
-                else x = 9;
-            } flag = true;
-        } else if (GetButton('R')) {
-            x++; if (x >= 10) {
-                if (mode == 2 && y == 0) { int maxC = pyCands.length() / 3; if (pyScroll + 10 < maxC) { pyScroll += 10; x = 0; } else x = 9; }
-                else x = 0;
-            } flag = true;
+        } else if (now - lastKey > KEY_COOL) {
+            if (GetButton('U')) { y--; if (y < 0) y = 3; lastKey = now; flag = true; }
+            else if (GetButton('D')) { y++; if (y > 3) y = 0; lastKey = now; flag = true; }
+            else if (GetButton('L')) {
+                x--; if (x < 0) {
+                    if (mode == 2 && y == 0) { if (pyScroll > 0) { pyScroll -= 10; if (pyScroll < 0) pyScroll = 0; x = 0; } else x = 9; }
+                    else x = 9;
+                } lastKey = now; flag = true;
+            } else if (GetButton('R')) {
+                x++; if (x >= 10) {
+                    if (mode == 2 && y == 0) { int maxC = pyCands.length() / 3; if (pyScroll + 10 < maxC) { pyScroll += 10; x = 0; } else x = 9; }
+                    else x = 0;
+                } lastKey = now; flag = true;
+            }
         }
-        if (flag) delay(200);
+        delay(10);   // 动画帧间隔（方向键改用时间戳冷却，长按可连续移动）
     }
     return otp;
 }
@@ -455,14 +470,23 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 	// 确保不超限
 	while (otp.length() > (unsigned)maxl) otp = otp.substring(0, otp.length() - 1);
 	int x = 0, y = 0;
+	float fx = 0.0f, fy = 0.0f;                 // 平滑光标位置（动画）
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 130;
 	delay(200);
-	
+
 	if (base == 'D') {
 		const char a[2][6] = {
 			{'1','2','3','4','5','C'},
 			{'6','7','8','9','0','<'}
 		};
 		while (true) {
+			// 平滑光标逼近
+			fx += ((float)x - fx) * 0.35f;
+			if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
+			fy += ((float)y - fy) * 0.35f;
+			if (fabsf((float)y - fy) < 0.02f) fy = (float)y;
+
 			_u8g2->firstPage();
 			do {
 			_u8g2->drawFrame(1, 1, 127, 12);
@@ -478,30 +502,35 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 					for (int j = 0; j < 2; j++) {
 						_u8g2->setCursor(i * 21 + 1, 14 + j * 25);
 						_u8g2->print(a[j][i]);
-						if (i == x && j == y) {
-							_u8g2->drawFrame(i * 21, 15 + j * 28, 20, 24);
-						}
 					}
 				}
+				// 平滑光标框（滑过去而非瞬移）
+				_u8g2->drawFrame((int)(fx * 21), 15 + (int)(fy * 28), 20, 24);
 			} while (_u8g2->nextPage());
-			
-			bool flag = false;
+
+			unsigned long now = millis();
 			if (GetButton('S')) { while (GetButton('S')) delay(10); break; }  // 等 SET 松手
-			else if (GetButton('U')) { y--; if (y < 0) y = 1; flag = true; }
-			else if (GetButton('D')) { y++; if (y >= 2) y = 0; flag = true; }
-			else if (GetButton('L')) { x--; if (x < 0) x = 5; flag = true; }
-			else if (GetButton('R')) { x++; if (x >= 6) x = 0; flag = true; }
-			else if (GetButton('O')) {
-				flag = true;
-				if (a[y][x] == 'C') otp = "";
-				else if (a[y][x] == '<') otp = otp.substring(0, otp.length() - 1);
-				else if (otp.length() <= maxl) otp += a[y][x];
+			else if (now - lastKey > KEY_COOL) {
+				if (GetButton('U')) { y--; if (y < 0) y = 1; lastKey = now; }
+				else if (GetButton('D')) { y++; if (y >= 2) y = 0; lastKey = now; }
+				else if (GetButton('L')) { x--; if (x < 0) x = 5; lastKey = now; }
+				else if (GetButton('R')) { x++; if (x >= 6) x = 0; lastKey = now; }
+				else if (GetButton('O')) {
+					lastKey = now;
+					if (a[y][x] == 'C') otp = "";
+					else if (a[y][x] == '<') otp = otp.substring(0, otp.length() - 1);
+					else if (otp.length() <= maxl) otp += a[y][x];
+				}
 			}
-			if (flag) delay(200);
+			delay(10);
 		}
 	} else if (base == 'B') {
 		const char a[4] = {'0','1','C','<'};
 		while (true) {
+			// 平滑光标逼近
+			fx += ((float)x - fx) * 0.35f;
+			if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
+
 			_u8g2->firstPage();
 			do {
 			_u8g2->drawFrame(1, 1, 127, 12);
@@ -516,23 +545,23 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 				for (int i = 0; i < 4; i++) {
 					_u8g2->setCursor(i * 21 + 1, 14);
 					_u8g2->print(a[i]);
-					if (i == x) {
-						_u8g2->drawFrame(i * 21, 14, 20, 24);
-					}
 				}
+				_u8g2->drawFrame((int)(fx * 21), 14, 20, 24);
 			} while (_u8g2->nextPage());
-			
-			bool flag = false;
+
+			unsigned long now = millis();
 			if (GetButton('S')) { while (GetButton('S')) delay(10); break; }  // 等 SET 松手
-			else if (GetButton('L')) { x--; if (x < 0) x = 3; flag = true; }
-			else if (GetButton('R')) { x++; if (x >= 4) x = 0; flag = true; }
-			else if (GetButton('O')) {
-				flag = true;
-				if (a[x] == 'C') otp = "";
-				else if (a[x] == '<') otp = otp.substring(0, otp.length() - 1);
-				else if (otp.length() <= maxl) otp += a[x];
+			else if (now - lastKey > KEY_COOL) {
+				if (GetButton('L')) { x--; if (x < 0) x = 3; lastKey = now; }
+				else if (GetButton('R')) { x++; if (x >= 4) x = 0; lastKey = now; }
+				else if (GetButton('O')) {
+					lastKey = now;
+					if (a[x] == 'C') otp = "";
+					else if (a[x] == '<') otp = otp.substring(0, otp.length() - 1);
+					else if (otp.length() <= maxl) otp += a[x];
+				}
 			}
-			if (flag) delay(200);
+			delay(10);
 		}
 	}
 	return otp;
@@ -544,13 +573,27 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 int WonderUI::listchoose4(String x, String y, String z, String a, String title) {
 	int p = 0;
 	const int mp = 3;
-	bool upd = false;
-	
+	const int N  = 4;
+	String items[4] = { x, y, z, a };
+	float slide = 0.0f;                        // 页切换纵向滑动
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 150;
+
 	while (true) {
-		if (GetButton('D')) { p++; if (p > mp) p = 0; upd = true; }
-		else if (GetButton('U')) { p--; if (p < 0) p = mp; upd = true; }
-		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
-		
+		unsigned long now = millis();
+
+		// ---- 按键（冷却 + 触发滑动）----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('D')) { p++; if (p > mp) p = 0; slide = 14.0f; lastKey = now; }
+			else if (GetButton('U')) { p--; if (p < 0) p = mp; slide = -14.0f; lastKey = now; }
+		}
+		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
+
+		// ---- 滑动收敛（ease-out）----
+		slide += (0.0f - slide) * 0.35f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+		int dy = (int)slide;
+
 		_u8g2->firstPage();
 		do {
 			_u8g2->drawHLine(0, 9, 128);
@@ -560,78 +603,24 @@ int WonderUI::listchoose4(String x, String y, String z, String a, String title) 
 			_u8g2->print(title + "-Page" + String(p + 1));
 			_u8g2->drawVLine(125, 9, 56);
 			
-			if (p == 0) {
+			// 4 行统一按 dy 偏移绘制（原 4 个 if 块参数化，选中项跟随滑动）
+			for (int i = 0; i < N; i++) {
+				int y = 11 + i * 14 + dy;
+				if (y < 9 || y > 55) continue;
+				_u8g2->drawFrame(2, y, 121, 13);
 				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 13 + 8, 129);
-				
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-				
-				_u8g2->drawFrame(2, 53, 121, 13);
-				_u8g2->setCursor(12, 55); _u8g2->print(a);
-			}
-			else if (p == 1) {
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 27 + 8, 129);
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-				_u8g2->drawFrame(2, 53, 121, 13);
-				_u8g2->setCursor(12, 55); _u8g2->print(a);
-			}
-			else if (p == 2) {
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 41 + 8, 129);
-				_u8g2->drawFrame(2, 53, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, 55); _u8g2->print(a);
-			}
-			else if (p == 3) {
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-				_u8g2->drawFrame(2, 53, 121, 13);
-				_u8g2->setCursor(12, 55); _u8g2->print(a);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 55 + 8, 129);
+				_u8g2->setCursor(12, y + 2);
+				_u8g2->print(items[i]);
+				if (i == p) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, y + 2 + 1 * 8, 129);
+				}
 			}
 		} while (_u8g2->nextPage());
-		
-		if (upd) { delay(200); upd = false; }
+
+		delay(10);
 	}
 	return -1;
 }
@@ -642,13 +631,27 @@ int WonderUI::listchoose4(String x, String y, String z, String a, String title) 
 int WonderUI::listchoose3(String x, String y, String z, String title) {
 	int p = 0;
 	const int mp = 2;
-	bool upd = false;
-	
+	const int N  = 3;
+	String items[3] = { x, y, z };
+	float slide = 0.0f;                        // 页切换纵向滑动
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 150;
+
 	while (true) {
-		if (GetButton('D')) { p++; if (p > mp) p = 0; upd = true; }
-		else if (GetButton('U')) { p--; if (p < 0) p = mp; upd = true; }
-		else if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
-		
+		unsigned long now = millis();
+
+		// ---- 按键（冷却 + 触发滑动）----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('D')) { p++; if (p > mp) p = 0; slide = 14.0f; lastKey = now; }
+			else if (GetButton('U')) { p--; if (p < 0) p = mp; slide = -14.0f; lastKey = now; }
+		}
+		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
+
+		// ---- 滑动收敛（ease-out）----
+		slide += (0.0f - slide) * 0.35f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+		int dy = (int)slide;
+
 		_u8g2->firstPage();
 		do {
 			_u8g2->drawHLine(0, 9, 128);
@@ -657,53 +660,25 @@ int WonderUI::listchoose3(String x, String y, String z, String title) {
 			_u8g2->setCursor(0, 0);
 			_u8g2->print(title + "-Page" + String(p + 1));
 			_u8g2->drawVLine(125, 9, 56);
-			
-			if (p == 0) {
+
+			// 3 行统一按 dy 偏移绘制（原 3 个 if 块参数化）
+			for (int i = 0; i < N; i++) {
+				int y = 11 + i * 14 + dy;
+				if (y < 9 || y > 55) continue;
+				_u8g2->drawFrame(2, y, 121, 13);
 				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 13 + 8, 129);
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-			}
-			else if (p == 1) {
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 27 + 8, 129);
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-			}
-			else if (p == 2) {
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->drawFrame(2, 11, 121, 13);
-				_u8g2->setCursor(12, 13); _u8g2->print(x);
-				_u8g2->drawFrame(2, 25, 121, 13);
-				_u8g2->setCursor(12, 27); _u8g2->print(y);
-				_u8g2->drawFrame(2, 39, 121, 13);
-				_u8g2->setCursor(12, 41); _u8g2->print(z);
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-				_u8g2->drawGlyph(3, 41 + 8, 129);
+				_u8g2->setCursor(12, y + 2);
+				_u8g2->print(items[i]);
+				if (i == p) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, y + 2 + 1 * 8, 129);
+				}
 			}
 		} while (_u8g2->nextPage());
-		
-		if (upd) { delay(200); upd = false; }
+
+		delay(10);
 	}
 	return -1;
 }
@@ -876,9 +851,33 @@ int WonderUI::listchooseArr(const char* const* items, int count, const char* tit
 // 数值上下调节
 //-------------------------------------------
 int WonderUI::numericUpDown(int maxn, int minn, String title) {
-	int otp = 0;
+	int   otp   = 0;
+	int   prev  = 0;            // 上一个值（滚出动画用）
+	float slide = 0.0f;         // 数字纵向偏移，每帧向 0 收敛
+	unsigned long lastKey = 0;
+	const unsigned long KEY_COOL = 130;
+
 	while (true) {
-		bool flag = false;
+		unsigned long now = millis();
+
+		// ---- 按键（冷却，长按连续加减）----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('R')) {
+				prev = otp; otp++; slide = 12.0f;    // 加：新值自下而上滚入
+				lastKey = now;
+			} else if (GetButton('L')) {
+				prev = otp; otp--; slide = -12.0f;   // 减：新值自上而下滚入
+				lastKey = now;
+			}
+		}
+		// 限幅（限幅后若变化，同步 prev 避免视觉跳变）
+		if (otp < minn) { otp = minn; prev = otp; slide = 0.0f; }
+		else if (otp > maxn) { otp = maxn; prev = otp; slide = 0.0f; }
+
+		// ---- 滑动收敛（ease-out）----
+		slide += (0.0f - slide) * 0.30f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+
 		_u8g2->firstPage();
 		do {
 			_u8g2->setFont(u8g2_font_timR08_tf);
@@ -886,37 +885,33 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 			_u8g2->setCursor(0, 0);
 			_u8g2->print(title);
 			_u8g2->drawHLine(0, 9, 128);
+
+			// 数字滚动：当前值 + 旧值反向滑出
 			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 11);
+			_u8g2->setCursor(0, 11 + (int)slide);
 			_u8g2->print(String(otp));
+			if (slide != 0.0f) {
+				int prevY = 11 + (int)slide + (slide > 0 ? -12 : 12);
+				if (prevY > 9 && prevY < 40) {
+					_u8g2->setCursor(0, prevY);
+					_u8g2->print(String(prev));
+				}
+			}
+
 			_u8g2->setCursor(0, 52);
 			_u8g2->print("R:加  L:减");
-			_u8g2->setFont(u8g2_font_timR08_tf);
-			_u8g2->setFontPosTop();
-			
-			if (GetButton('R')) {
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_6x_t);
-				_u8g2->drawGlyph(80, 11 + 48, 75);
-				otp++; flag = true;
-			} else if (GetButton('L')) {
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_6x_t);
-				_u8g2->drawGlyph(80, 11 + 48, 74);
-				otp--; flag = true;
-			} else {
-				_u8g2->setFontPosBottom();
-				_u8g2->setFont(u8g2_font_open_iconic_all_6x_t);
-				_u8g2->drawGlyph(80, 11 + 48, 71);
-			}
+
+			// 右侧方向指示图标
+			_u8g2->setFontPosBottom();
+			_u8g2->setFont(u8g2_font_open_iconic_all_6x_t);
+			if (GetButton('R'))      _u8g2->drawGlyph(80, 11 + 48, 75);
+			else if (GetButton('L')) _u8g2->drawGlyph(80, 11 + 48, 74);
+			else                     _u8g2->drawGlyph(80, 11 + 48, 71);
 		} while (_u8g2->nextPage());
-		
-		if (otp < minn) otp = minn;
-		else if (otp > maxn) otp = maxn;
-		
-		if (flag) delay(150);
+
 		if (GetButton('O')) { while (GetButton('O')) delay(10); break; }  // 等 OK 松手再返回
+		delay(10);
 	}
 	return otp;
 }
@@ -925,30 +920,39 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 // 确认/信息框
 //-------------------------------------------
 bool WonderUI::check(String title, String line1, String line2, String line3, String line4) {
+	float slide = 64.0f;                    // 整页从屏幕下方滑入
+
 	while (true) {
 		if (GetButton('O')) { while (GetButton('O')) delay(10); break; }  // 等 OK 松手，避免残留触发
 		else if (GetButton('S')) { while (GetButton('S')) delay(10); return false; }  // 等 SET 松手
-		
+
+		// 滑入收敛（ease-out）
+		slide += (0.0f - slide) * 0.30f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+		int dy = (int)slide;
+
 		_u8g2->firstPage();
 		do {
 			_u8g2->setFont(u8g2_font_timR08_tf);
 			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
+			_u8g2->setCursor(0, 0 + dy);
 			_u8g2->print(title);
 			_u8g2->setFont(u8g2_font_timB12_tf);
 			_u8g2->setFontPosTop();
-			_u8g2->drawHLine(0, 9, 128);
+			_u8g2->drawHLine(0, 9 + dy, 128);
 			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
 			_u8g2->setFontPosTop();
-			_u8g2->setCursor(5, 13);
+			_u8g2->setCursor(5, 13 + dy);
 			_u8g2->print(line1);
-			_u8g2->setCursor(5, 25);
+			_u8g2->setCursor(5, 25 + dy);
 			_u8g2->print(line2);
-			_u8g2->setCursor(5, 37);
+			_u8g2->setCursor(5, 37 + dy);
 			_u8g2->print(line3);
-			_u8g2->setCursor(0, 52);
+			_u8g2->setCursor(0, 52 + dy);
 			_u8g2->print(line4);
 		} while (_u8g2->nextPage());
+
+		delay(10);
 	}
 	return true;
 }
