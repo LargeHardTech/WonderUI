@@ -9,6 +9,7 @@ WonderUI - 通用OLED显示界面库
 
 #include <Arduino.h>
 #include <U8g2lib.h>
+#include <functional>
 
 class WonderUI {
 public:
@@ -63,6 +64,14 @@ public:
 	// 文本框：显示长文本，自动换行(10字/行)，4行/页，上下键翻页，OK/Set退出
 	// 标题栏显示 "标题 [当前页/总页数]"
 	void textBox(String title, String text);
+	
+	// ---- 标准页（统一页面骨架）----
+	// 标题栏 + 分隔线 + 内容区（内容从 y=11 开始），每帧轮询调用 draw 渲染内容。
+	// draw(dy)：dy 是入场/退出动画的纵向偏移，内容里各 y 坐标 + dy 即可（正常帧 dy = 0）；
+	//           返回 true = 请求退出本页（例如按了 OK），返回 false = 继续轮询。
+	// SET 键统一退出本页（无需在 draw 里处理）。
+	// anim：是否启用底部弹入 / 向下滑出动画，默认 true（不传即开）
+	void page(const String& title, std::function<bool(int dy)> draw, bool anim = true);
 	
 	// 确认/信息框，OK返回true，Set返回false
 	bool check(String title, String line1, String line2, String line3, String line4);

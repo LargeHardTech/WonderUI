@@ -130,7 +130,7 @@ void WonderUI::start() {
 //-------------------------------------------
 void WonderUI::startTypewriter() {
 	const int   TEXT_Y   = 23;              // 文字顶部 y（屏幕视觉中心）
-	const int   CUR_W    = 4;               // 光标宽 px（原 2，加宽 2）
+	const int   CUR_W    = 2;               // 光标宽 px（原 4，收窄 2）
 	const int   CUR_H    = 20;              // 光标高 px（原 18，向下伸长 2）
 	const int   CUR_DY   = 0;               // 光标相对文字基线偏移 px（再上移 3px）
 	const int   X_DROP   = 64;              // 下落起始 x（屏幕中线）
@@ -141,9 +141,9 @@ void WonderUI::startTypewriter() {
 	_u8g2->setFontPosTop();
 
 	// 预计算每个字符的 x（光标落点 = 已打字符总宽）
-	// 居中基准仍用原光标宽 2，再整体左移 5px（所有元素统一左移）
+	// 居中基准用原光标宽 2，再整体左移 3px（先左移 5，后又右移 2）
 	int charX[TEXT_LEN + 1];
-	charX[0] = (_u8g2->getDisplayWidth() - _u8g2->getStrWidth("WonderU") - 2) / 2 - 5;
+	charX[0] = (_u8g2->getDisplayWidth() - _u8g2->getStrWidth("WonderU") - 2) / 2 - 3;
 	for (int i = 0; i < TEXT_LEN; i++) {
 		char s[2] = { TEXT[i], 0 };
 		charX[i + 1] = charX[i] + _u8g2->getStrWidth(s);
@@ -1210,6 +1210,56 @@ void WonderUI::textBox(String title, String text) {
 
 		renderFrame(0);
 
+		delay(10);
+	}
+}
+
+//-------------------------------------------
+// 标准页：标题栏 + 内容区，每帧轮询 draw(dy)
+// draw 返回 true 请求退出；SET 键统一退出（anim 开时带滑出动画）
+//-------------------------------------------
+void WonderUI::page(const String& title, std::function<bool(int dy)> draw, bool anim) {
+	// 渲染一帧（dy = 纵向偏移，0 为正常位置），返回 draw 的退出请求
+	auto renderPage = [&](int dy) -> bool {
+		bool quit = false;
+		_u8g2->firstPage();
+		do {
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0 + dy);
+			_u8g2->print(title);
+			_u8g2->drawHLine(0, 9 + dy, 128);
+			quit = draw(dy);
+		} while (_u8g2->nextPage());
+		return quit;
+	};
+
+	// ---- 入场：从底部往上弹出（ease-out，8 帧）----
+	if (anim) {
+		for (int f = 0; f <= 7; f++) {
+			float ep = (float)f / 7.0f;
+			float ee = 1 - (1 - ep) * (1 - ep);
+			renderPage((int)(64 * (1 - ee)));
+		}
+	}
+
+	while (true) {
+		bool quit = (GetButton('S'));
+		if (quit) {
+			while (GetButton('S')) delay(10);
+		} else {
+			quit = renderPage(0);
+		}
+		if (quit) {
+			if (anim) {
+				// 退出：整页向下滑出（ease-in 加速离场，6 帧）
+				for (int f = 1; f <= 6; f++) {
+					float ep = (float)f / 6.0f;
+					renderPage((int)(64 * ep * ep));
+				}
+			}
+			return;
+		}
 		delay(10);
 	}
 }
