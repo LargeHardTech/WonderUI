@@ -835,8 +835,8 @@ int WonderUI::listchooseArr(const char* const* items, const int* icons, int coun
 				_u8g2->setFontPosTop();
 				_u8g2->setCursor(12, y + 2);
 				_u8g2->print(items[idx] ? items[idx] : "");
-				// 每项自定义图标（传了 icons 数组时逐行绘制）
-				if (icons != nullptr && icons[idx] > 0) {
+				// 每项自定义图标：只画选中项的（未选中留空，图标即高亮指示）
+				if (icons != nullptr && idx == p && icons[idx] > 0) {
 					_u8g2->setFontPosBottom();
 					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
 					_u8g2->drawGlyph(3, y + 2 + 1 * 8, icons[idx]);
@@ -870,7 +870,15 @@ int WonderUI::listchooseArr(const char* const* items, const int* icons, int coun
 			else if (GetButton('U')) { p--; if (p < 0) p = count - 1; lastKey = now; }
 		}
 		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
-		if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+		if (GetButton('S')) {
+			while (GetButton('S')) delay(10);
+			// 退出：整页向下滑出（与入场对称，ease-in 加速离场）
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderList((int)(64 * ep * ep));
+			}
+			return -1;
+		}
 
 		// ---- 可视区目标 ----
 		if (p < offset) offset = p;
