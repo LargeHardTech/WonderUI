@@ -132,7 +132,7 @@ void WonderUI::startTypewriter() {
 	const int   TEXT_Y   = 23;              // 文字顶部 y（屏幕视觉中心）
 	const int   CUR_W    = 4;               // 光标宽 px（原 2，加宽 2）
 	const int   CUR_H    = 20;              // 光标高 px（原 18，向下伸长 2）
-	const int   CUR_DY   = 3;               // 光标相对文字基线下移 px
+	const int   CUR_DY   = 0;               // 光标相对文字基线偏移 px（再上移 3px）
 	const int   X_DROP   = 64;              // 下落起始 x（屏幕中线）
 	const char* TEXT     = "WonderU";       // 最后光标常亮充当 I，视觉为 "WonderUI"
 	const int   TEXT_LEN = 7;
@@ -796,6 +796,10 @@ int WonderUI::listchoose(String title, int count, ...) {
 // 数组版列表选择（上限 20 项，一屏 4 项光标式）
 //-------------------------------------------
 int WonderUI::listchooseArr(const char* const* items, int count, const char* title) {
+	return listchooseArr(items, nullptr, count, title);   // 无图标版转调带图标版
+}
+
+int WonderUI::listchooseArr(const char* const* items, const int* icons, int count, const char* title) {
 	const int MAX = 20;
 	if (count < 1 || items == NULL) return -1;
 	if (count > MAX) count = MAX;
@@ -852,9 +856,15 @@ int WonderUI::listchooseArr(const char* const* items, int count, const char* tit
 				_u8g2->setFontPosTop();
 				_u8g2->setCursor(12, y + 2);
 				_u8g2->print(items[idx] ? items[idx] : "");
+				// 每项自定义图标（传了 icons 数组时逐行绘制）
+				if (icons != nullptr && icons[idx] > 0) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, y + 2 + 1 * 8, icons[idx]);
+				}
 			}
-			// 光标：按 focus 平滑位置绘制
-			{
+			// 光标：仅在未传 icons 时用默认光标（传了图标则靠高亮框区分选中）
+			if (icons == nullptr) {
 				int hy = 11 + (int)((focus - scroll) * 14.0f);
 				if (hy >= 9 && hy <= 55) {
 					_u8g2->setFontPosBottom();

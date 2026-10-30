@@ -52,6 +52,8 @@ public:
 	// 数组版列表选择（上限 20 项，一屏 4 项光标式），Set 退出返回 -1
 	// items 为 const char* 指针数组，count 为项数
 	int listchooseArr(const char* const* items, int count, const char* title);
+	// 同上，另传 icons 数组为每项指定左侧图标（u8g2 open_iconic 字形码，<=0 表示该行不画图标）
+	int listchooseArr(const char* const* items, const int* icons, int count, const char* title);
 	
 	// 数值上下调节（范围 minn ~ maxn）
 	int numericUpDown(int maxn, int minn, String title);
