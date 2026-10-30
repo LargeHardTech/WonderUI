@@ -1105,7 +1105,7 @@ void WonderUI::textBox(String title, String text) {
 	const int LINE_WIDTH  = 20;  // 每行 20 单位宽（英文=1, 中文=2）
 	const int CH_PER_PAGE  = 4;
 
-	// 1. 按显示宽度拆行（中文 2 单位, 英文 1 单位, 满 20 换行）
+	// 1. 拆行：\n 强制换行；其余按显示宽度换行（中文 2 单位, 英文 1 单位, 满 20 换行）
 	String lines[320];
 	int totalLines = 0;
 	const char* raw = text.c_str();
@@ -1114,15 +1114,17 @@ void WonderUI::textBox(String title, String text) {
 	while (bytePos < len && totalLines < 320) {
 		int lineStart = bytePos;
 		int lineWidth = 0;
+		bool hardBreak = false;
 		while (bytePos < len) {
 			unsigned char c = raw[bytePos];
+			if (c == '\n') { bytePos++; hardBreak = true; break; }   // 强制换行（不含 \n 本身）
 			int charW = (c > 0x7F) ? 2 : 1;   // 中文宽 2, ASCII 宽 1
 			int charBytes = (c > 0x7F) ? 3 : 1;  // UTF-8: 中文 3 字节, ASCII 1 字节
 			if (lineWidth + charW > LINE_WIDTH) break;
 			lineWidth += charW;
 			bytePos += charBytes;
 		}
-		lines[totalLines++] = text.substring(lineStart, bytePos);
+		lines[totalLines++] = text.substring(lineStart, hardBreak ? bytePos - 1 : bytePos);
 	}
 	if (totalLines == 0) {
 		lines[0] = "";
