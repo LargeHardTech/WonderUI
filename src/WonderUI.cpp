@@ -601,30 +601,18 @@ int WonderUI::listchoose4(String x, String y, String z, String a, String title) 
 	unsigned long lastKey = 0;
 	const unsigned long KEY_COOL = 150;
 
-	while (true) {
-		unsigned long now = millis();
-
-		// ---- 按键（冷却 + 触发滑动）----
-		if (now - lastKey > KEY_COOL) {
-			if (GetButton('D')) { p++; if (p > mp) p = 0; slide = 14.0f; lastKey = now; }
-			else if (GetButton('U')) { p--; if (p < 0) p = mp; slide = -14.0f; lastKey = now; }
-		}
-		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
-
-		// ---- 滑动收敛（ease-out）----
-		slide += (0.0f - slide) * 0.35f;
-		if (fabsf(slide) < 0.4f) slide = 0.0f;
-		int dy = (int)slide;
-
+	// 渲染一帧（edy = 入场纵向偏移，0 为正常位置）
+	auto renderList = [&](int edy) {
+		int dy = (int)slide + edy;
 		_u8g2->firstPage();
 		do {
-			_u8g2->drawHLine(0, 9, 128);
+			_u8g2->drawHLine(0, 9 + edy, 128);
 			_u8g2->setFont(u8g2_font_timR08_tf);
 			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
+			_u8g2->setCursor(0, 0 + edy);
 			_u8g2->print(title + "-Page" + String(p + 1));
-			_u8g2->drawVLine(125, 9, 56);
-			
+			_u8g2->drawVLine(125, 9 + edy, 56);
+
 			// 4 行统一按 dy 偏移绘制（原 4 个 if 块参数化，选中项跟随滑动）
 			for (int i = 0; i < N; i++) {
 				int y = 11 + i * 14 + dy;
@@ -641,7 +629,38 @@ int WonderUI::listchoose4(String x, String y, String z, String a, String title) 
 				}
 			}
 		} while (_u8g2->nextPage());
+	};
 
+	// ---- 入场：从底部往上弹出（ease-out，8 帧）----
+	for (int f = 0; f <= 7; f++) {
+		float ep = (float)f / 7.0f;
+		float ee = 1 - (1 - ep) * (1 - ep);
+		renderList((int)(64 * (1 - ee)));
+	}
+
+	while (true) {
+		unsigned long now = millis();
+
+		// ---- 按键（冷却 + 触发滑动）----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('D')) { p++; if (p > mp) p = 0; slide = 14.0f; lastKey = now; }
+			else if (GetButton('U')) { p--; if (p < 0) p = mp; slide = -14.0f; lastKey = now; }
+		}
+		if (GetButton('O')) {
+			while (GetButton('O')) delay(10);
+			// 确认进入下一层：整页向下滑出
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderList((int)(64 * ep * ep));
+			}
+			return p;
+		}
+
+		// ---- 滑动收敛（ease-out）----
+		slide += (0.0f - slide) * 0.35f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+
+		renderList(0);
 		delay(10);
 	}
 	return -1;
@@ -659,29 +678,17 @@ int WonderUI::listchoose3(String x, String y, String z, String title) {
 	unsigned long lastKey = 0;
 	const unsigned long KEY_COOL = 150;
 
-	while (true) {
-		unsigned long now = millis();
-
-		// ---- 按键（冷却 + 触发滑动）----
-		if (now - lastKey > KEY_COOL) {
-			if (GetButton('D')) { p++; if (p > mp) p = 0; slide = 14.0f; lastKey = now; }
-			else if (GetButton('U')) { p--; if (p < 0) p = mp; slide = -14.0f; lastKey = now; }
-		}
-		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }  // 等 OK 松手再返回
-
-		// ---- 滑动收敛（ease-out）----
-		slide += (0.0f - slide) * 0.35f;
-		if (fabsf(slide) < 0.4f) slide = 0.0f;
-		int dy = (int)slide;
-
+	// 渲染一帧（edy = 入场纵向偏移，0 为正常位置）
+	auto renderList = [&](int edy) {
+		int dy = (int)slide + edy;
 		_u8g2->firstPage();
 		do {
-			_u8g2->drawHLine(0, 9, 128);
+			_u8g2->drawHLine(0, 9 + edy, 128);
 			_u8g2->setFont(u8g2_font_timR08_tf);
 			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
+			_u8g2->setCursor(0, 0 + edy);
 			_u8g2->print(title + "-Page" + String(p + 1));
-			_u8g2->drawVLine(125, 9, 56);
+			_u8g2->drawVLine(125, 9 + edy, 56);
 
 			// 3 行统一按 dy 偏移绘制（原 3 个 if 块参数化）
 			for (int i = 0; i < N; i++) {
@@ -699,7 +706,38 @@ int WonderUI::listchoose3(String x, String y, String z, String title) {
 				}
 			}
 		} while (_u8g2->nextPage());
+	};
 
+	// ---- 入场：从底部往上弹出（ease-out，8 帧）----
+	for (int f = 0; f <= 7; f++) {
+		float ep = (float)f / 7.0f;
+		float ee = 1 - (1 - ep) * (1 - ep);
+		renderList((int)(64 * (1 - ee)));
+	}
+
+	while (true) {
+		unsigned long now = millis();
+
+		// ---- 按键（冷却 + 触发滑动）----
+		if (now - lastKey > KEY_COOL) {
+			if (GetButton('D')) { p++; if (p > mp) p = 0; slide = 14.0f; lastKey = now; }
+			else if (GetButton('U')) { p--; if (p < 0) p = mp; slide = -14.0f; lastKey = now; }
+		}
+		if (GetButton('O')) {
+			while (GetButton('O')) delay(10);
+			// 确认进入下一层：整页向下滑出
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderList((int)(64 * ep * ep));
+			}
+			return p;
+		}
+
+		// ---- 滑动收敛（ease-out）----
+		slide += (0.0f - slide) * 0.35f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+
+		renderList(0);
 		delay(10);
 	}
 	return -1;
@@ -731,6 +769,49 @@ int WonderUI::listchoose(String title, int count, ...) {
 	unsigned long lastKey = 0;
 	const unsigned long KEY_COOL = 150;   // 按键冷却，长按可连续滚动
 
+	// 渲染一帧（edy = 入场纵向偏移，0 为正常位置）
+	auto renderList = [&](int edy) {
+		_u8g2->firstPage();
+		do {
+			_u8g2->drawHLine(0, 9 + edy, 128);
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0 + edy);
+			_u8g2->print(title);
+			_u8g2->drawVLine(125, 9 + edy, 56);
+
+			// 列表：按 scroll 连续偏移绘制（上下各多画一项，过渡时无缝）
+			int base = (int)floorf(scroll);
+			for (int i = -1; i <= VISIBLE; i++) {
+				int idx = base + i;
+				if (idx < 0 || idx >= count) continue;
+				int y = 11 + edy + (int)((idx - scroll) * 14.0f);
+				if (y < 9 || y > 55) continue;            // 裁剪出可视区
+				_u8g2->drawFrame(2, y, 121, 13);
+				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+				_u8g2->setFontPosTop();
+				_u8g2->setCursor(12, y + 2);
+				_u8g2->print(items[idx]);
+			}
+			// 光标：按 focus 平滑位置单独绘制（滑过去而不是瞬移）
+			{
+				int hy = 11 + edy + (int)((focus - scroll) * 14.0f);
+				if (hy >= 9 && hy <= 55) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
+				}
+			}
+		} while (_u8g2->nextPage());
+	};
+
+	// ---- 入场：从底部往上弹出（ease-out，8 帧）----
+	for (int f = 0; f <= 7; f++) {
+		float ep = (float)f / 7.0f;
+		float ee = 1 - (1 - ep) * (1 - ep);
+		renderList((int)(64 * (1 - ee)));
+	}
+
 	while (true) {
 		unsigned long now = millis();
 
@@ -739,8 +820,24 @@ int WonderUI::listchoose(String title, int count, ...) {
 			if (GetButton('D')) { p++; if (p >= count) p = 0; lastKey = now; }
 			else if (GetButton('U')) { p--; if (p < 0) p = count - 1; lastKey = now; }
 		}
-		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
-		if (GetButton('S')) { while (GetButton('S')) delay(10); return -1; }
+		if (GetButton('O')) {
+			while (GetButton('O')) delay(10);
+			// 确认进入下一层：整页向下滑出
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderList((int)(64 * ep * ep));
+			}
+			return p;
+		}
+		if (GetButton('S')) {
+			while (GetButton('S')) delay(10);
+			// 取消：整页向下滑出（与入场对称）
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderList((int)(64 * ep * ep));
+			}
+			return -1;
+		}
 
 		// ---- 可视区目标（选中项越出时平移）----
 		if (p < offset) offset = p;
@@ -754,39 +851,7 @@ int WonderUI::listchoose(String title, int count, ...) {
 		focus  += ((float)p - focus) * 0.35f;
 		if (fabsf((float)p - focus) < 0.02f) focus = (float)p;
 
-		_u8g2->firstPage();
-		do {
-			_u8g2->drawHLine(0, 9, 128);
-			_u8g2->setFont(u8g2_font_timR08_tf);
-			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
-			_u8g2->print(title);
-			_u8g2->drawVLine(125, 9, 56);
-
-			// 列表：按 scroll 连续偏移绘制（上下各多画一项，过渡时无缝）
-			int base = (int)floorf(scroll);
-			for (int i = -1; i <= VISIBLE; i++) {
-				int idx = base + i;
-				if (idx < 0 || idx >= count) continue;
-				int y = 11 + (int)((idx - scroll) * 14.0f);
-				if (y < 9 || y > 55) continue;            // 裁剪出可视区
-				_u8g2->drawFrame(2, y, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, y + 2);
-				_u8g2->print(items[idx]);
-			}
-			// 光标：按 focus 平滑位置单独绘制（滑过去而不是瞬移）
-			{
-				int hy = 11 + (int)((focus - scroll) * 14.0f);
-				if (hy >= 9 && hy <= 55) {
-					_u8g2->setFontPosBottom();
-					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
-				}
-			}
-		} while (_u8g2->nextPage());
-
+		renderList(0);
 		delay(10);   // 动画帧间隔
 	}
 	return -1;
@@ -835,20 +900,16 @@ int WonderUI::listchooseArr(const char* const* items, const int* icons, int coun
 				_u8g2->setFontPosTop();
 				_u8g2->setCursor(12, y + 2);
 				_u8g2->print(items[idx] ? items[idx] : "");
-				// 每项自定义图标：只画选中项的（未选中留空，图标即高亮指示）
-				if (icons != nullptr && idx == p && icons[idx] > 0) {
-					_u8g2->setFontPosBottom();
-					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, y + 2 + 1 * 8, icons[idx]);
-				}
 			}
-			// 光标：仅在未传 icons 时用默认光标（传了图标则靠高亮框区分选中）
-			if (icons == nullptr) {
-				int hy = 11 + edy + (int)((focus - scroll) * 14.0f);
-				if (hy >= 9 && hy <= 55) {
+			// 光标 / 图标：统一按 focus 平滑位置绘制（页内移动滑过去而不是瞬移）
+			// 传了 icons 则画选中项自己的图标，否则画默认光标 129
+			{
+				int  hy    = 11 + edy + (int)((focus - scroll) * 14.0f);
+				int  glyph = (icons != nullptr) ? icons[p] : 129;
+				if (hy >= 9 && hy <= 55 && glyph > 0) {
 					_u8g2->setFontPosBottom();
 					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
+					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, glyph);
 				}
 			}
 		} while (_u8g2->nextPage());
@@ -869,7 +930,15 @@ int WonderUI::listchooseArr(const char* const* items, const int* icons, int coun
 			if (GetButton('D')) { p++; if (p >= count) p = 0; lastKey = now; }
 			else if (GetButton('U')) { p--; if (p < 0) p = count - 1; lastKey = now; }
 		}
-		if (GetButton('O')) { while (GetButton('O')) delay(10); return p; }
+		if (GetButton('O')) {
+			while (GetButton('O')) delay(10);
+			// 确认进入下一层：整页向下滑出
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderList((int)(64 * ep * ep));
+			}
+			return p;
+		}
 		if (GetButton('S')) {
 			while (GetButton('S')) delay(10);
 			// 退出：整页向下滑出（与入场对称，ease-in 加速离场）
@@ -973,15 +1042,8 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 bool WonderUI::check(String title, String line1, String line2, String line3, String line4) {
 	float slide = 64.0f;                    // 整页从屏幕下方滑入
 
-	while (true) {
-		if (GetButton('O')) { while (GetButton('O')) delay(10); break; }  // 等 OK 松手，避免残留触发
-		else if (GetButton('S')) { while (GetButton('S')) delay(10); return false; }  // 等 SET 松手
-
-		// 滑入收敛（ease-out）
-		slide += (0.0f - slide) * 0.30f;
-		if (fabsf(slide) < 0.4f) slide = 0.0f;
-		int dy = (int)slide;
-
+	// 渲染一帧（dy = 纵向偏移，0 为正常位置）
+	auto renderFrame = [&](int dy) {
 		_u8g2->firstPage();
 		do {
 			_u8g2->setFont(u8g2_font_timR08_tf);
@@ -1002,6 +1064,34 @@ bool WonderUI::check(String title, String line1, String line2, String line3, Str
 			_u8g2->setCursor(0, 52 + dy);
 			_u8g2->print(line4);
 		} while (_u8g2->nextPage());
+	};
+
+	// 退出：整页向下滑出（ease-in 加速离场，5 帧）
+	auto slideOut = [&]() {
+		for (int f = 1; f <= 5; f++) {
+			float ep = (float)f / 5.0f;
+			renderFrame((int)(64 * ep * ep));
+		}
+	};
+
+	while (true) {
+		if (GetButton('O')) {
+			while (GetButton('O')) delay(10);  // 等 OK 松手，避免残留触发
+			slideOut();
+			return true;
+		}
+		else if (GetButton('S')) {
+			while (GetButton('S')) delay(10);  // 等 SET 松手
+			slideOut();
+			return false;
+		}
+
+		// 滑入收敛（ease-out）
+		slide += (0.0f - slide) * 0.30f;
+		if (fabsf(slide) < 0.4f) slide = 0.0f;
+		int dy = (int)slide;
+
+		renderFrame(dy);
 
 		delay(10);
 	}
@@ -1045,6 +1135,40 @@ void WonderUI::textBox(String title, String text) {
 	unsigned long lastKey = 0;
 	const unsigned long KEY_COOL = 150;
 
+	// 渲染一帧（edy = 入场纵向偏移，0 为正常位置）
+	auto renderFrame = [&](int edy) {
+		_u8g2->firstPage();
+		do {
+			// 标题栏
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0 + edy);
+			String titleBar = title + " [" + String(curPage + 1) + "/" + String(totalPages) + "]";
+			_u8g2->print(titleBar);
+			_u8g2->drawHLine(0, 9 + edy, 128);
+
+			// 内容：按 slide 偏移绘制，上下各多画一行保证过渡无缝
+			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+			_u8g2->setFontPosTop();
+			int startLine = curPage * CH_PER_PAGE;
+			for (int i = -1; i <= CH_PER_PAGE; i++) {
+				int idx = startLine + i;
+				if (idx < 0 || idx >= totalLines) continue;
+				int y = 11 + edy + (int)(i * 13 + slide);
+				if (y < 9 || y > 58) continue;         // 裁剪
+				_u8g2->setCursor(0, y);
+				_u8g2->print(lines[idx]);
+			}
+		} while (_u8g2->nextPage());
+	};
+
+	// ---- 入场：从底部往上弹出（ease-out，8 帧）----
+	for (int f = 0; f <= 7; f++) {
+		float ep = (float)f / 7.0f;
+		float ee = 1 - (1 - ep) * (1 - ep);
+		renderFrame((int)(64 * (1 - ee)));
+	}
+
 	while (true) {
 		unsigned long now = millis();
 
@@ -1062,10 +1186,19 @@ void WonderUI::textBox(String title, String text) {
 		}
 		if (GetButton('O')) {
 			while (GetButton('O')) delay(10);
+			// 退出：整页向下滑出
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderFrame((int)(64 * ep * ep));
+			}
 			return;
 		}
 		if (GetButton('S')) {
 			while (GetButton('S')) delay(10);
+			for (int f = 1; f <= 6; f++) {
+				float ep = (float)f / 6.0f;
+				renderFrame((int)(64 * ep * ep));
+			}
 			return;
 		}
 
@@ -1073,29 +1206,7 @@ void WonderUI::textBox(String title, String text) {
 		slide += (0.0f - slide) * 0.35f;
 		if (fabsf(slide) < 0.3f) slide = 0.0f;
 
-		_u8g2->firstPage();
-		do {
-			// 标题栏
-			_u8g2->setFont(u8g2_font_timR08_tf);
-			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
-			String titleBar = title + " [" + String(curPage + 1) + "/" + String(totalPages) + "]";
-			_u8g2->print(titleBar);
-			_u8g2->drawHLine(0, 9, 128);
-
-			// 内容：按 slide 偏移绘制，上下各多画一行保证过渡无缝
-			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-			_u8g2->setFontPosTop();
-			int startLine = curPage * CH_PER_PAGE;
-			for (int i = -1; i <= CH_PER_PAGE; i++) {
-				int idx = startLine + i;
-				if (idx < 0 || idx >= totalLines) continue;
-				int y = 11 + (int)(i * 13 + slide);
-				if (y < 9 || y > 58) continue;         // 裁剪
-				_u8g2->setCursor(0, y);
-				_u8g2->print(lines[idx]);
-			}
-		} while (_u8g2->nextPage());
+		renderFrame(0);
 
 		delay(10);
 	}
