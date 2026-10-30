@@ -799,18 +799,67 @@ int WonderUI::listchooseArr(const char* const* items, int count, const char* tit
 	return listchooseArr(items, nullptr, count, title);   // 无图标版转调带图标版
 }
 
-int WonderUI::listchooseArr(const char* const* items, const int* icons, int count, const char* title) {
+int WonderUI::listchooseArr(const char* const* items, const int* icons, int count, const char* title, int startIdx) {
 	const int MAX = 20;
 	if (count < 1 || items == NULL) return -1;
 	if (count > MAX) count = MAX;
 
-	int   p      = 0;         // 当前选中项
+	int   p      = (startIdx > 0 && startIdx < count) ? startIdx : 0;   // 起始选中项
 	int   offset = 0;         // 逻辑可视区顶部
 	float scroll = 0.0f;      // 平滑滚动位置（单位：项）
-	float focus  = 0.0f;      // 平滑光标位置（单位：项）
+	float focus  = (float)p;  // 平滑光标位置（单位：项）
 	const int VISIBLE = 4;
 	unsigned long lastKey = 0;
 	const unsigned long KEY_COOL = 150;
+
+	// 渲染一帧（edy = 入场纵向偏移，0 为正常位置）
+	auto renderList = [&](int edy) {
+		_u8g2->firstPage();
+		do {
+			_u8g2->drawHLine(0, 9 + edy, 128);
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0 + edy);
+			_u8g2->print(title);
+			_u8g2->drawVLine(125, 9 + edy, 56);
+
+			// 列表：按 scroll 连续偏移绘制
+			int base = (int)floorf(scroll);
+			for (int i = -1; i <= VISIBLE; i++) {
+				int idx = base + i;
+				if (idx < 0 || idx >= count) continue;
+				int y = 11 + edy + (int)((idx - scroll) * 14.0f);
+				if (y < 9 || y > 55) continue;
+				_u8g2->drawFrame(2, y, 121, 13);
+				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+				_u8g2->setFontPosTop();
+				_u8g2->setCursor(12, y + 2);
+				_u8g2->print(items[idx] ? items[idx] : "");
+				// 每项自定义图标（传了 icons 数组时逐行绘制）
+				if (icons != nullptr && icons[idx] > 0) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, y + 2 + 1 * 8, icons[idx]);
+				}
+			}
+			// 光标：仅在未传 icons 时用默认光标（传了图标则靠高亮框区分选中）
+			if (icons == nullptr) {
+				int hy = 11 + edy + (int)((focus - scroll) * 14.0f);
+				if (hy >= 9 && hy <= 55) {
+					_u8g2->setFontPosBottom();
+					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
+					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
+				}
+			}
+		} while (_u8g2->nextPage());
+	};
+
+	// ---- 入场：从底部往上弹出（ease-out，8 帧）----
+	for (int f = 0; f <= 7; f++) {
+		float ep = (float)f / 7.0f;
+		float ee = 1 - (1 - ep) * (1 - ep);
+		renderList((int)(64 * (1 - ee)));
+	}
 
 	while (true) {
 		unsigned long now = millis();
@@ -835,45 +884,7 @@ int WonderUI::listchooseArr(const char* const* items, const int* icons, int coun
 		focus  += ((float)p - focus) * 0.35f;
 		if (fabsf((float)p - focus) < 0.02f) focus = (float)p;
 
-		_u8g2->firstPage();
-		do {
-			_u8g2->drawHLine(0, 9, 128);
-			_u8g2->setFont(u8g2_font_timR08_tf);
-			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
-			_u8g2->print(title);
-			_u8g2->drawVLine(125, 9, 56);
-
-			// 列表：按 scroll 连续偏移绘制
-			int base = (int)floorf(scroll);
-			for (int i = -1; i <= VISIBLE; i++) {
-				int idx = base + i;
-				if (idx < 0 || idx >= count) continue;
-				int y = 11 + (int)((idx - scroll) * 14.0f);
-				if (y < 9 || y > 55) continue;
-				_u8g2->drawFrame(2, y, 121, 13);
-				_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-				_u8g2->setFontPosTop();
-				_u8g2->setCursor(12, y + 2);
-				_u8g2->print(items[idx] ? items[idx] : "");
-				// 每项自定义图标（传了 icons 数组时逐行绘制）
-				if (icons != nullptr && icons[idx] > 0) {
-					_u8g2->setFontPosBottom();
-					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, y + 2 + 1 * 8, icons[idx]);
-				}
-			}
-			// 光标：仅在未传 icons 时用默认光标（传了图标则靠高亮框区分选中）
-			if (icons == nullptr) {
-				int hy = 11 + (int)((focus - scroll) * 14.0f);
-				if (hy >= 9 && hy <= 55) {
-					_u8g2->setFontPosBottom();
-					_u8g2->setFont(u8g2_font_open_iconic_all_1x_t);
-					_u8g2->drawGlyph(3, hy + 2 + 1 * 8, 129);
-				}
-			}
-		} while (_u8g2->nextPage());
-
+		renderList(0);
 		delay(10);
 	}
 	return -1;

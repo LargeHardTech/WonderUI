@@ -53,7 +53,9 @@ public:
 	// items 为 const char* 指针数组，count 为项数
 	int listchooseArr(const char* const* items, int count, const char* title);
 	// 同上，另传 icons 数组为每项指定左侧图标（u8g2 open_iconic 字形码，<=0 表示该行不画图标）
-	int listchooseArr(const char* const* items, const int* icons, int count, const char* title);
+	// startIdx：初始选中项（默认 0），便于返回菜单时保持上次位置
+	// 内置入场动画：整页从底部往上弹出（ease-out）
+	int listchooseArr(const char* const* items, const int* icons, int count, const char* title, int startIdx = 0);
 	
 	// 数值上下调节（范围 minn ~ maxn）
 	int numericUpDown(int maxn, int minn, String title);
