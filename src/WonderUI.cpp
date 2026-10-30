@@ -149,6 +149,17 @@ void WonderUI::startTypewriter() {
 		charX[i + 1] = charX[i] + _u8g2->getStrWidth(s);
 	}
 
+	// ---- 角标署名（光标落到屏幕中心时同步开始，两句节奏不同、不一定同时结束，之后常亮）----
+	_u8g2->setFont(u8g2_font_5x8_tf);
+	const char* SIGN_L  = "Powered by";
+	const char* SIGN_R  = "LargeHardTech";
+	const int   SIGN_LX = 2;                                     // 左上角
+	const int   SIGN_LY = 1;
+	const int   SIGN_RX = 128 - _u8g2->getStrWidth(SIGN_R) - 2;  // 右下角
+	const int   SIGN_RY = 55;
+	const unsigned long BLINK_L = 80;     // Powered by 闪烁半周期（闪得快）
+	const unsigned long BLINK_R = 110;    // LargeHardTech 闪烁半周期（稍慢，结束也不同步）
+
 	// 时间轴（ms）
 	const unsigned long D_DROP    = 400;    // 下落
 	const unsigned long D_MOVE    = 350;    // 左移
@@ -224,6 +235,17 @@ void WonderUI::startTypewriter() {
 			}
 			if (curVisible) {
 				_u8g2->drawBox(curX, curY + CUR_DY, CUR_W, CUR_H);
+			}
+
+			// ---- 角标署名：光标刚到中心（开始左移）时同步启动，各闪两下后常亮 ----
+			if (t >= D_DROP) {
+				unsigned long st = t - D_DROP;
+				_u8g2->setFont(u8g2_font_5x8_tf);
+				_u8g2->setFontPosTop();
+				bool showL = (st >= BLINK_L * 4) || (((st / BLINK_L) % 2) == 0);
+				bool showR = (st >= BLINK_R * 4) || (((st / BLINK_R) % 2) == 0);
+				if (showL) { _u8g2->setCursor(SIGN_LX, SIGN_LY); _u8g2->print(SIGN_L); }
+				if (showR) { _u8g2->setCursor(SIGN_RX, SIGN_RY); _u8g2->print(SIGN_R); }
 			}
 		} while (_u8g2->nextPage());
 
