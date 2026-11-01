@@ -350,13 +350,9 @@ String WonderUI::input(int maxl, const String& init) {
     };
 
     delay(200);
-    while (true) {
-        // ---- 平滑光标逼近目标格（动画核心）----
-        fx += ((float)x - fx) * 0.35f;
-        if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
-        fy += ((float)y - fy) * 0.35f;
-        if (fabsf((float)y - fy) < 0.02f) fy = (float)y;
 
+    // 渲染一帧（抽出来供入场/出场动画复用）
+    auto renderInput = [&]() {
         String display = otp;
         if (mode == 2) display += spel;
 
@@ -416,6 +412,23 @@ String WonderUI::input(int maxl, const String& init) {
                 _u8g2->drawFrame(hlx, hly, 11, 14);
             }
         } while (_u8g2->nextPage());
+    };
+
+    // ---- 入场：clip 窗口从底部往上揭开（8 帧，无需改坐标）----
+    for (int f = 0; f <= 7; f++) {
+        _u8g2->setClipWindow(0, 56 - f * 7, 127, 63);
+        renderInput();
+    }
+    _u8g2->setClipWindow(0, 0, 127, 63);
+
+    while (true) {
+        // ---- 平滑光标逼近目标格（动画核心）----
+        fx += ((float)x - fx) * 0.35f;
+        if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
+        fy += ((float)y - fy) * 0.35f;
+        if (fabsf((float)y - fy) < 0.02f) fy = (float)y;
+
+        renderInput();
 
         bool flag = false;
         unsigned long now = millis();
@@ -423,7 +436,15 @@ String WonderUI::input(int maxl, const String& init) {
             while (GetButton('S')) delay(10);
             if (mode == 2 && pyCands.length() > 0 && y == 0) {
                 mode = 0; spel = ""; pyCands = ""; pyScroll = 0; x = 0; y = 0;
-            } else break;
+            } else {
+                // ---- 出场：clip 窗口从上往下收起（8 帧）----
+                for (int f = 0; f <= 7; f++) {
+                    _u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
+                    renderInput();
+                }
+                _u8g2->setClipWindow(0, 0, 127, 63);
+                break;
+            }
         } else if (GetButton('O')) {
             while (GetButton('O')) delay(10);
             flag = true;
@@ -502,13 +523,8 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 			{'1','2','3','4','5','C'},
 			{'6','7','8','9','0','<'}
 		};
-		while (true) {
-			// 平滑光标逼近
-			fx += ((float)x - fx) * 0.35f;
-			if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
-			fy += ((float)y - fy) * 0.35f;
-			if (fabsf((float)y - fy) < 0.02f) fy = (float)y;
-
+		// 渲染一帧（供入场/出场动画复用）
+		auto renderNum = [&]() {
 			_u8g2->firstPage();
 			do {
 			_u8g2->drawFrame(1, 1, 127, 12);
@@ -529,9 +545,35 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 				// 平滑光标框（滑过去而非瞬移）
 				_u8g2->drawFrame((int)(fx * 21), 15 + (int)(fy * 28), 20, 24);
 			} while (_u8g2->nextPage());
+		};
+
+		// ---- 入场：clip 从底部往上揭开（8 帧）----
+		for (int f = 0; f <= 7; f++) {
+			_u8g2->setClipWindow(0, 56 - f * 7, 127, 63);
+			renderNum();
+		}
+		_u8g2->setClipWindow(0, 0, 127, 63);
+
+		while (true) {
+			// 平滑光标逼近
+			fx += ((float)x - fx) * 0.35f;
+			if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
+			fy += ((float)y - fy) * 0.35f;
+			if (fabsf((float)y - fy) < 0.02f) fy = (float)y;
+
+			renderNum();
 
 			unsigned long now = millis();
-			if (GetButton('S')) { while (GetButton('S')) delay(10); break; }  // 等 SET 松手
+			if (GetButton('S')) {
+				while (GetButton('S')) delay(10);        // 等 SET 松手
+				// ---- 出场：clip 从上往下收起（8 帧）----
+				for (int f = 0; f <= 7; f++) {
+					_u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
+					renderNum();
+				}
+				_u8g2->setClipWindow(0, 0, 127, 63);
+				break;
+			}
 			else if (now - lastKey > KEY_COOL) {
 				if (GetButton('U')) { y--; if (y < 0) y = 1; lastKey = now; }
 				else if (GetButton('D')) { y++; if (y >= 2) y = 0; lastKey = now; }
@@ -548,11 +590,8 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 		}
 	} else if (base == 'B') {
 		const char a[4] = {'0','1','C','<'};
-		while (true) {
-			// 平滑光标逼近
-			fx += ((float)x - fx) * 0.35f;
-			if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
-
+		// 渲染一帧（供入场/出场动画复用）
+		auto renderNum = [&]() {
 			_u8g2->firstPage();
 			do {
 			_u8g2->drawFrame(1, 1, 127, 12);
@@ -570,9 +609,33 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 				}
 				_u8g2->drawFrame((int)(fx * 21), 14, 20, 24);
 			} while (_u8g2->nextPage());
+		};
+
+		// ---- 入场：clip 从底部往上揭开（8 帧）----
+		for (int f = 0; f <= 7; f++) {
+			_u8g2->setClipWindow(0, 56 - f * 7, 127, 63);
+			renderNum();
+		}
+		_u8g2->setClipWindow(0, 0, 127, 63);
+
+		while (true) {
+			// 平滑光标逼近
+			fx += ((float)x - fx) * 0.35f;
+			if (fabsf((float)x - fx) < 0.02f) fx = (float)x;
+
+			renderNum();
 
 			unsigned long now = millis();
-			if (GetButton('S')) { while (GetButton('S')) delay(10); break; }  // 等 SET 松手
+			if (GetButton('S')) {
+				while (GetButton('S')) delay(10);        // 等 SET 松手
+				// ---- 出场：clip 从上往下收起（8 帧）----
+				for (int f = 0; f <= 7; f++) {
+					_u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
+					renderNum();
+				}
+				_u8g2->setClipWindow(0, 0, 127, 63);
+				break;
+			}
 			else if (now - lastKey > KEY_COOL) {
 				if (GetButton('L')) { x--; if (x < 0) x = 3; lastKey = now; }
 				else if (GetButton('R')) { x++; if (x >= 4) x = 0; lastKey = now; }
