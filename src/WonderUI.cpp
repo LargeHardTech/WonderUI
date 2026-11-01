@@ -304,6 +304,17 @@ static String lookupPinyin(const String& prefix) {
     return result;
 }
 
+// ---- 字符串可视宽度（中文 12px, ASCII 6px）----
+static int visualWidth(const String& s, int fontW = 12) {
+    int w = 0;
+    for (int i = 0; i < (int)s.length(); ) {
+        unsigned char c = s[i];
+        if (c > 0x7F) { w += fontW; i += 3; }
+        else { w += fontW / 2; i += 1; }
+    }
+    return w;
+}
+
 // ============================================================
 // 9 键中文输入（T9）数据层：数字串 ↔ 拼音
 // ============================================================
@@ -697,16 +708,6 @@ String WonderUI::showPinyinDetail(const String& digits) {
 //-------------------------------------------
 // 字符输入键盘
 //-------------------------------------------
-// ---- 字符串可视宽度（中文 12px, ASCII 6px）----
-static int visualWidth(const String& s, int fontW = 12) {
-    int w = 0;
-    for (int i = 0; i < (int)s.length(); ) {
-        unsigned char c = s[i];
-        if (c > 0x7F) { w += fontW; i += 3; }
-        else { w += fontW / 2; i += 1; }
-    }
-    return w;
-}
 
 String WonderUI::input(int maxl, const String& init) {
     String otp = init;
