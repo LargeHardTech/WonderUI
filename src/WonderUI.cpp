@@ -537,7 +537,10 @@ bool WonderUI::nineKeyInput(String& otp, int maxl) {
                 else if (row < 2) row++;
             } else if (GetButton('L')) {
                 lastKey = now;
-                if (row == -1) { if (candSel > 0) candSel--; }
+                if (row == -1) {
+                    if (candSel > 0) candSel--;              // 左移
+                    else candSel = SEL_EXPAND;               // 第 1 个再往左 → 绕到最右展开按钮
+                }
                 else if (col > 0) { col--; if (col == 2 && row > 2) row = 2; }
             } else if (GetButton('R')) {
                 lastKey = now;
