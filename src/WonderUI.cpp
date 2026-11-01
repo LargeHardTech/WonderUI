@@ -1439,6 +1439,48 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 	unsigned long lastKey = 0;
 	const unsigned long KEY_COOL = 130;
 
+	// 渲染一帧（抽出供入场/出场动画复用）
+	auto render = [&]() {
+		_u8g2->firstPage();
+		do {
+			_u8g2->setFont(u8g2_font_timR08_tf);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 0);
+			_u8g2->print(title);
+			_u8g2->drawHLine(0, 9, 128);
+
+			// 数字滚动：当前值 + 旧值反向滑出（print(int) 不构造临时 String）
+			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+			_u8g2->setFontPosTop();
+			_u8g2->setCursor(0, 11 + (int)slide);
+			_u8g2->print(otp);
+			if (slide != 0.0f) {
+				int prevY = 11 + (int)slide + (slide > 0 ? -12 : 12);
+				if (prevY > 9 && prevY < 40) {
+					_u8g2->setCursor(0, prevY);
+					_u8g2->print(prev);
+				}
+			}
+
+			_u8g2->setCursor(0, 52);
+			_u8g2->print("R:加  L:减");
+
+			// 右侧方向指示图标
+			_u8g2->setFontPosBottom();
+			_u8g2->setFont(u8g2_font_open_iconic_all_6x_t);
+			if (GetButton('R'))      _u8g2->drawGlyph(80, 11 + 48, 75);
+			else if (GetButton('L')) _u8g2->drawGlyph(80, 11 + 48, 74);
+			else                     _u8g2->drawGlyph(80, 11 + 48, 71);
+		} while (_u8g2->nextPage());
+	};
+
+	// ---- 入场：clip 从底部往上揭开（8 帧）----
+	for (int f = 0; f <= 7; f++) {
+		_u8g2->setClipWindow(0, 56 - f * 7, 127, 63);
+		render();
+	}
+	_u8g2->setClipWindow(0, 0, 127, 63);
+
 	while (true) {
 		unsigned long now = millis();
 
@@ -1460,39 +1502,18 @@ int WonderUI::numericUpDown(int maxn, int minn, String title) {
 		slide += (0.0f - slide) * 0.30f;
 		if (fabsf(slide) < 0.4f) slide = 0.0f;
 
-		_u8g2->firstPage();
-		do {
-			_u8g2->setFont(u8g2_font_timR08_tf);
-			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 0);
-			_u8g2->print(title);
-			_u8g2->drawHLine(0, 9, 128);
+		render();
 
-			// 数字滚动：当前值 + 旧值反向滑出
-			_u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-			_u8g2->setFontPosTop();
-			_u8g2->setCursor(0, 11 + (int)slide);
-			_u8g2->print(String(otp));
-			if (slide != 0.0f) {
-				int prevY = 11 + (int)slide + (slide > 0 ? -12 : 12);
-				if (prevY > 9 && prevY < 40) {
-					_u8g2->setCursor(0, prevY);
-					_u8g2->print(String(prev));
-				}
+		if (GetButton('O')) {
+			while (GetButton('O')) delay(10);        // 等 OK 松手再返回
+			// ---- 出场：clip 从上往下收起（8 帧）----
+			for (int f = 0; f <= 7; f++) {
+				_u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
+				render();
 			}
-
-			_u8g2->setCursor(0, 52);
-			_u8g2->print("R:加  L:减");
-
-			// 右侧方向指示图标
-			_u8g2->setFontPosBottom();
-			_u8g2->setFont(u8g2_font_open_iconic_all_6x_t);
-			if (GetButton('R'))      _u8g2->drawGlyph(80, 11 + 48, 75);
-			else if (GetButton('L')) _u8g2->drawGlyph(80, 11 + 48, 74);
-			else                     _u8g2->drawGlyph(80, 11 + 48, 71);
-		} while (_u8g2->nextPage());
-
-		if (GetButton('O')) { while (GetButton('O')) delay(10); break; }  // 等 OK 松手再返回
+			_u8g2->setClipWindow(0, 0, 127, 63);
+			break;
+		}
 		delay(10);
 	}
 	return otp;
