@@ -89,6 +89,11 @@ private:
 	void start2(int x, int b);
 	void start3();
 	void start4();
+
+	// 9 键中文输入（T9）：共享 otp 直接编辑，SHIFT/SET 退出回 26 键
+	void nineKeyInput(String& otp, int maxl);
+	// 详细选字页：左栏拼音（可滚动）+ 右栏该拼音的字；返回选中的汉字（空串 = 未选/收起）
+	String showPinyinDetail(const String& digits);
 };
 
 // ---- 全局按键音回调（app 注册，OK=la 'f', SET=do 'a'）----
