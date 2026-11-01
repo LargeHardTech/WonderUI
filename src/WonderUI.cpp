@@ -429,18 +429,27 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
                 }
             }
 
-            // ---- 右栏 4 键 ----
+            // ---- 右栏：顶部数字串 + 4 键 ----
             const int RX = 96;
-            const int RY[4] = {14, 26, 38, 50};
-            for (int i = 0; i < 4; i++) _u8g2->drawFrame(RX, RY[i], 32, 12);
+            const int RY[4] = {22, 33, 44, 55};      // 各键顶部 y
+            const int RH[4] = {11, 11, 11, 9};       // 各键高度（末格贴到屏底）
+
+            // 逗号上方：当前数字串（4x6 小字，空时显示 ---）
+            _u8g2->setFont(u8g2_font_4x6_tf);
+            _u8g2->setFontPosTop();
+            _u8g2->setCursor(RX + 4, 15);
+            _u8g2->print(digits.length() ? digits : "---");
+
+            for (int i = 0; i < 4; i++) _u8g2->drawFrame(RX, RY[i], 32, RH[i]);
             _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
             _u8g2->setFontPosTop();
-            _u8g2->setCursor(RX + 10, RY[0] + 1); _u8g2->print("，");
-            _u8g2->setCursor(RX + 10, RY[1] + 1); _u8g2->print("。");
+            _u8g2->setCursor(RX + 10, RY[0] - 2); _u8g2->print("，");
+            _u8g2->setCursor(RX + 10, RY[1] - 2); _u8g2->print("。");
             _u8g2->setFont(u8g2_font_4x6_tf);
-            _u8g2->setCursor(RX + 5, RY[2] + 3); _u8g2->print("SHIFT");
-            _u8g2->setCursor(RX + 9, RY[3] + 3); _u8g2->print("DEL");
-            if (col == 3 && row >= 0) _u8g2->drawFrame(RX - 1, RY[row] - 1, 34, 14);
+            _u8g2->setCursor(RX + 5, RY[2] + 2); _u8g2->print("SHIFT");
+            _u8g2->setCursor(RX + 9, RY[3] + 2); _u8g2->print("DEL");
+            if (col == 3 && row >= 0)
+                _u8g2->drawFrame(RX - 1, RY[row] - 1, 34, RH[row] + 2);
         } while (_u8g2->nextPage());
     };
 
