@@ -378,79 +378,129 @@ static String candAt(const String& cands, int k) {
 // 9 键中文输入（T9）：选字条 + 九宫格 + 右栏（，/。/SHIFT/DEL）
 // 数字串累积 → 匹配拼音 → 候选字；SHIFT/SET 退出回 26 键
 //-------------------------------------------
-void WonderUI::nineKeyInput(String& otp, int maxl) {
+bool WonderUI::nineKeyInput(String& otp, int maxl) {
     static const char* K_LTR[3][3] = {
         { "",     "abc",  "def"  },
         { "ghi",  "jkl",  "mno"  },
         { "pqrs", "tuv",  "wxyz" }
     };
 
-    String digits  = "";        // 已按的数字串
-    String cands   = "";        // 当前候选字（UTF-8 拼接）
-    int col = 0;                // 0-2 九宫格列，3 右栏
-    int row = 0;                // 九宫格 0-2；右栏 0-3；选字条 -1
-    int candSel = 0;            // 选字条光标（0..cnt，cnt = 展开按钮）
-    int candScroll = 0;
+    // ---- 布局常量（128x64）----
+    const int IN_H  = 13;                 // 输入框 y0-12
+    const int CB_Y  = 14, CB_H = 12;      // 选字条 y14-25
+    const int KB_Y  = 26;                 // 键盘顶
+    const int GW    = 32, GH = 12;        // 九宫格格子
+    const int RX    = 96;                 // 右栏 x
+    const int RY[4] = {26, 36, 46, 55};   // 右栏各键顶
+    const int RH[4] = {10, 10, 9, 9};     // 右栏各键高
+    const int SEL_EXPAND = 9;             // 选字条第 10 位固定为展开按钮
+
+    String digits = "";                   // 已按的数字串
+    String cands  = "";                   // 候选字（UTF-8）
+    int col = 0;                          // 0-2 九宫格列，3 右栏
+    int row = 0;                          // 九宫格 0-2；右栏 0-3；选字条 -1
+    int candSel = 0;                      // 选字条光标 0-8 候选，9 = 展开按钮
     unsigned long lastKey = 0;
     const unsigned long KEY_COOL = 130;
 
     auto render = [&]() {
         _u8g2->firstPage();
         do {
-            // ---- 选字条 ----
-            _u8g2->drawFrame(0, 0, 127, 14);      // 127 宽：右边框落在 126 列，留 1px
-            int cnt = cands.length() / 3;
-            const int SHOW = 9;
-            for (int i = 0; i < SHOW && candScroll + i < cnt; i++) {
-                int x = 2 + i * 12;
-                if (row == -1 && candScroll + i == candSel) _u8g2->drawFrame(x - 1, 1, 12, 12);
+            _u8g2->setDrawColor(1);
+
+            // ---- 输入框：已输入内容 + 右下角数字串 ----
+            _u8g2->drawFrame(0, 0, 127, IN_H);
+            {
                 _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
                 _u8g2->setFontPosTop();
-                _u8g2->setCursor(x, 1);
-                _u8g2->print(candAt(cands, candScroll + i));
+                int vw = visualWidth(otp);
+                int sx = (vw > 82) ? (vw - 82) : 0;      // 超宽左滚，给右侧数字串留位
+                _u8g2->setCursor(2 - sx, 1);
+                _u8g2->print(otp);
             }
-            // 展开按钮（选字条最右，实心下三角）
-            if (row == -1 && candSel == cnt) _u8g2->drawFrame(114, 1, 14, 12);
-            _u8g2->drawTriangle(117, 4, 125, 4, 121, 9);
+            _u8g2->setFont(u8g2_font_4x6_tf);
+            _u8g2->setCursor(92, 5);
+            _u8g2->print(digits);
 
-            // ---- 九宫格 3×3：数字大 + 字母小 ----
+            // ---- 选字条 ----
+            _u8g2->drawFrame(0, CB_Y, 127, CB_H);
+            int cnt = cands.length() / 3;
+            int cbDraw = (row == -1) ? candSel : -1;
+            for (int i = 0; i < SEL_EXPAND && i < cnt; i++) {
+                int x = 2 + i * 12;
+                if (cbDraw == i) {
+                    _u8g2->drawBox(x - 1, CB_Y, 12, 12);
+                    _u8g2->setDrawColor(0);
+                }
+                _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+                _u8g2->setFontPosTop();
+                _u8g2->setCursor(x, CB_Y);
+                _u8g2->print(candAt(cands, i));
+                if (cbDraw == i) _u8g2->setDrawColor(1);
+            }
+            // 展开按钮：固定最右，不受候选数量影响，永远可选中
+            {
+                bool sel = (cbDraw == SEL_EXPAND);
+                if (sel) {
+                    _u8g2->drawBox(113, CB_Y, 13, 12);
+                    _u8g2->setDrawColor(0);
+                }
+                _u8g2->drawTriangle(117, CB_Y + 4, 124, CB_Y + 4, 120, CB_Y + 9);
+                if (sel) _u8g2->setDrawColor(1);
+            }
+
+            // ---- 九宫格（选中反色）----
             for (int r = 0; r < 3; r++) {
                 for (int c = 0; c < 3; c++) {
-                    int x = c * 32, y = 14 + r * 16;
-                    _u8g2->drawFrame(x, y, 32, 16);
-                    _u8g2->setFont(u8g2_font_helvB12_tf);
+                    int x = c * GW, y = KB_Y + r * GH;
+                    bool sel = (row == r && col == c);
+                    if (sel) {
+                        _u8g2->drawBox(x, y, GW, GH);
+                        _u8g2->setDrawColor(0);
+                    } else {
+                        _u8g2->drawFrame(x, y, GW, GH);
+                    }
+                    _u8g2->setFont(u8g2_font_5x7_tf);
                     _u8g2->setFontPosTop();
-                    _u8g2->setCursor(x + 3, y + 1);
+                    _u8g2->setCursor(x + 4, y + 2);
                     _u8g2->print((char)('1' + r * 3 + c));
                     _u8g2->setFont(u8g2_font_4x6_tf);
-                    _u8g2->setCursor(x + 15, y + 9);
+                    _u8g2->setCursor(x + 13, y + 3);
                     _u8g2->print(K_LTR[r][c]);
-                    if (row == r && col == c) _u8g2->drawFrame(x - 1, y - 1, 34, 18);
+                    if (sel) _u8g2->setDrawColor(1);
                 }
             }
 
-            // ---- 右栏：顶部数字串 + 4 键 ----
-            const int RX = 96;
-            const int RY[4] = {22, 33, 44, 55};      // 各键顶部 y
-            const int RH[4] = {11, 11, 11, 9};       // 各键高度（末格贴到屏底）
-
-            // 逗号上方：当前数字串（4x6 小字，空时显示 ---）
-            _u8g2->setFont(u8g2_font_4x6_tf);
-            _u8g2->setFontPosTop();
-            _u8g2->setCursor(RX + 4, 15);
-            _u8g2->print(digits.length() ? digits : "---");
-
-            for (int i = 0; i < 4; i++) _u8g2->drawFrame(RX, RY[i], 31, RH[i]);   // 31 宽：右边框 126
-            _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-            _u8g2->setFontPosTop();
-            _u8g2->setCursor(RX + 10, RY[0] - 2); _u8g2->print("，");
-            _u8g2->setCursor(RX + 10, RY[1] - 2); _u8g2->print("。");
-            _u8g2->setFont(u8g2_font_4x6_tf);
-            _u8g2->setCursor(RX + 5, RY[2] + 2); _u8g2->print("SHIFT");
-            _u8g2->setCursor(RX + 9, RY[3] + 2); _u8g2->print("DEL");
-            if (col == 3 && row >= 0)
-                _u8g2->drawFrame(RX - 1, RY[row] - 1, 32, RH[row] + 2);   // 95..126，不越界
+            // ---- 右栏 4 键（选中反色）----
+            for (int i = 0; i < 4; i++) {
+                bool sel = (col == 3 && row == i);
+                if (sel) {
+                    _u8g2->drawBox(RX, RY[i], 31, RH[i]);
+                    _u8g2->setDrawColor(0);
+                } else {
+                    _u8g2->drawFrame(RX, RY[i], 31, RH[i]);
+                }
+                if (i == 0 || i == 1) {
+                    _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
+                    _u8g2->setFontPosTop();
+                    _u8g2->setCursor(RX + 10, RY[i] - 2);
+                    _u8g2->print(i == 0 ? "\xEF\xBC\x8C" : "\xE3\x80\x82");
+                } else {
+                    _u8g2->setFont(u8g2_font_4x6_tf);
+                    _u8g2->setCursor(RX + (i == 2 ? 5 : 9), RY[i] + 2);
+                    _u8g2->print(i == 2 ? "SHIFT" : "DEL");
+                }
+                if (sel) _u8g2->setDrawColor(1);
+            }
         } while (_u8g2->nextPage());
+    };
+
+    auto slideOut = [&]() {
+        for (int f = 0; f <= 7; f++) {
+            _u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
+            render();
+        }
+        _u8g2->setClipWindow(0, 0, 127, 63);
     };
 
     // ---- 入场：clip 从底部往上揭开 ----
@@ -471,7 +521,7 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
                 else if (row == 0) row = -1;          // 顶行再上 → 选字条
             } else if (GetButton('D')) {
                 lastKey = now;
-                if (row == -1) row = 0;               // 选字条 → 键盘
+                if (row == -1) row = 0;
                 else if (col == 3) { if (row < 3) row++; }
                 else if (row < 2) row++;
             } else if (GetButton('L')) {
@@ -480,7 +530,7 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
                 else if (col > 0) { col--; if (col == 2 && row > 2) row = 2; }
             } else if (GetButton('R')) {
                 lastKey = now;
-                if (row == -1) { if (candSel < (int)(cands.length() / 3)) candSel++; }
+                if (row == -1) { if (candSel < SEL_EXPAND) candSel++; }   // 到展开按钮即停
                 else if (col < 3) col++;
             }
         }
@@ -489,43 +539,36 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
         if (GetButton('O')) {
             while (GetButton('O')) delay(10);
             if (row == -1) {
-                int cnt = cands.length() / 3;
-                if (candSel >= cnt) {
-                    // 展开按钮 → 详细选字页
+                if (candSel >= SEL_EXPAND) {
                     String picked = showPinyinDetail(digits);
                     if (picked.length() > 0 && otp.length() + 3 <= maxl * 3) otp += picked;
-                    digits = ""; cands = ""; candSel = 0; candScroll = 0;
+                    digits = ""; cands = ""; candSel = 0;
                     row = 0; col = 0;
                 } else {
-                    // 选字
                     String c = candAt(cands, candSel);
                     if (c.length() > 0 && otp.length() + 3 <= maxl * 3) otp += c;
-                    digits = ""; cands = ""; candSel = 0; candScroll = 0;
+                    digits = ""; cands = ""; candSel = 0;
                 }
             } else if (col < 3) {
                 int d = row * 3 + col + 1;                // 1..9（1 号格无字母，空转）
-                if (d >= 2 && digits.length() < 6) {      // 拼音最长 6 字母（chuang/zhuan）
+                if (d >= 2 && digits.length() < 6) {
                     digits += (char)('0' + d);
                     cands = lookupByDigits(digits);
-                    candSel = 0; candScroll = 0;
+                    candSel = 0;
                 }
             } else {
                 if (row == 0) {                            // ，
                     if (otp.length() + 3 <= maxl * 3) otp += "\xEF\xBC\x8C";
                 } else if (row == 1) {                     // 。
                     if (otp.length() + 3 <= maxl * 3) otp += "\xE3\x80\x82";
-                } else if (row == 2) {                     // SHIFT → 回 26 键
-                    for (int f = 0; f <= 7; f++) {
-                        _u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
-                        render();
-                    }
-                    _u8g2->setClipWindow(0, 0, 127, 63);
-                    return;
+                } else if (row == 2) {                     // SHIFT → 回 26 键（继续输入）
+                    slideOut();
+                    return false;
                 } else {                                   // DEL：先删数字串，空了再删正文
                     if (digits.length() > 0) {
                         digits = digits.substring(0, digits.length() - 1);
                         cands = lookupByDigits(digits);
-                        candSel = 0; candScroll = 0;
+                        candSel = 0;
                     } else if (otp.length() > 0) {
                         int n = 1;
                         if ((otp[otp.length() - 1] & 0x80) != 0) n = 3;
@@ -535,25 +578,11 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
             }
         }
 
-        // ---- SET 退出 ----
+        // ---- SET → 结束整个输入并提交 ----
         if (GetButton('S')) {
             while (GetButton('S')) delay(10);
-            for (int f = 0; f <= 7; f++) {
-                _u8g2->setClipWindow(0, 0, 127, 63 - f * 8);
-                render();
-            }
-            _u8g2->setClipWindow(0, 0, 127, 63);
-            return;
-        }
-
-        // ---- 选字条滚动跟随 ----
-        {
-            int cnt = cands.length() / 3;
-            if (candSel < candScroll) candScroll = candSel;
-            if (candSel >= candScroll + 9) candScroll = candSel - 9 + 1;
-            if (cnt > 9 && candScroll > cnt - 9) candScroll = cnt - 9;
-            if (cnt <= 9) candScroll = 0;
-            if (candScroll < 0) candScroll = 0;
+            slideOut();
+            return true;
         }
 
         render();
@@ -561,10 +590,6 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
     }
 }
 
-//-------------------------------------------
-// 详细选字页：左栏拼音（可滚动）+ 右栏该拼音的字
-// U/D 换拼音，L/R 选字，OK 选中返回，SET 或右上角 ▲ 收起
-//-------------------------------------------
 String WonderUI::showPinyinDetail(const String& digits) {
     static int idxs[64];
     int n = matchPinyinDigits(digits, idxs, 64);
@@ -838,7 +863,8 @@ String WonderUI::input(int maxl, const String& init) {
                 int mi = pl[row][x];
                 if (mi == 3) {
                     // 拼音 26 键的 shift → 进入 9 键中文输入（退出后回小写模式）
-                    nineKeyInput(otp, maxl);
+                    // 返回 true = SET 结束整个输入并提交；false = SHIFT 回 26 键继续
+                    if (nineKeyInput(otp, maxl)) return otp;
                     mode = 0; x = 0; y = 0; spel = ""; pyCands = ""; pyScroll = 0;
                 }
                 else if (mi == 4) {
