@@ -398,7 +398,7 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
         _u8g2->firstPage();
         do {
             // ---- 选字条 ----
-            _u8g2->drawFrame(0, 0, 128, 14);
+            _u8g2->drawFrame(0, 0, 127, 14);      // 127 宽：右边框落在 126 列，留 1px
             int cnt = cands.length() / 3;
             const int SHOW = 9;
             for (int i = 0; i < SHOW && candScroll + i < cnt; i++) {
@@ -440,7 +440,7 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
             _u8g2->setCursor(RX + 4, 15);
             _u8g2->print(digits.length() ? digits : "---");
 
-            for (int i = 0; i < 4; i++) _u8g2->drawFrame(RX, RY[i], 32, RH[i]);
+            for (int i = 0; i < 4; i++) _u8g2->drawFrame(RX, RY[i], 31, RH[i]);   // 31 宽：右边框 126
             _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
             _u8g2->setFontPosTop();
             _u8g2->setCursor(RX + 10, RY[0] - 2); _u8g2->print("，");
@@ -449,7 +449,7 @@ void WonderUI::nineKeyInput(String& otp, int maxl) {
             _u8g2->setCursor(RX + 5, RY[2] + 2); _u8g2->print("SHIFT");
             _u8g2->setCursor(RX + 9, RY[3] + 2); _u8g2->print("DEL");
             if (col == 3 && row >= 0)
-                _u8g2->drawFrame(RX - 1, RY[row] - 1, 34, RH[row] + 2);
+                _u8g2->drawFrame(RX - 1, RY[row] - 1, 32, RH[row] + 2);   // 95..126，不越界
         } while (_u8g2->nextPage());
     };
 
@@ -723,7 +723,7 @@ String WonderUI::input(int maxl, const String& init) {
 
         _u8g2->firstPage();
         do {
-            _u8g2->drawFrame(1, 1, 127, 13);
+            _u8g2->drawFrame(1, 1, 126, 13);   // 宽度 126：右边框落在 126 列，留 1px 边距
             _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
             _u8g2->setFontPosTop();
             int vw = visualWidth(display);
@@ -830,18 +830,17 @@ String WonderUI::input(int maxl, const String& init) {
                     mode = (mode + 1) % 3;
                     if (mode == 2 || oldMode == 2) { x = 0; y = 0; }  // 进出拼音才重置
                     spel = ""; pyCands = ""; pyScroll = 0;
-                    // 拼音 26 键下再按 shift → 进入 9 键中文输入（退出后回小写）
-                    if (oldMode == 2) {
-                        nineKeyInput(otp, maxl);
-                        mode = 0; x = 0; y = 0;
-                    }
                 }
                 else if (ch == '<') otp = otp.substring(0, otp.length() - 1);
                 else if (otp.length() < maxl * 3) otp += ch;  // maxl 按字符数，UTF-8 中文 3 字节/字
             } else if (y > 0) {
                 int row = y - 1;
                 int mi = pl[row][x];
-                if (mi == 3) { mode = 0; x = 0; y = 0; spel = ""; pyCands = ""; pyScroll = 0; }
+                if (mi == 3) {
+                    // 拼音 26 键的 shift → 进入 9 键中文输入（退出后回小写模式）
+                    nineKeyInput(otp, maxl);
+                    mode = 0; x = 0; y = 0; spel = ""; pyCands = ""; pyScroll = 0;
+                }
                 else if (mi == 4) {
                     if (spel.length() > 0) {
                         spel = spel.substring(0, spel.length() - 1);
@@ -897,7 +896,7 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 		auto renderNum = [&]() {
 			_u8g2->firstPage();
 			do {
-			_u8g2->drawFrame(1, 1, 127, 12);
+			_u8g2->drawFrame(1, 1, 126, 12);   // 宽度 126：右边框落在 126 列，留 1px 边距
 			_u8g2->setFont(u8g2_font_timR08_tf);
 			_u8g2->setFontPosTop();
 			int nsx = otp.length() * 8;
@@ -964,7 +963,7 @@ String WonderUI::inputnum(int maxl, char base, const String& init) {
 		auto renderNum = [&]() {
 			_u8g2->firstPage();
 			do {
-			_u8g2->drawFrame(1, 1, 127, 12);
+			_u8g2->drawFrame(1, 1, 126, 12);   // 宽度 126：右边框落在 126 列，留 1px 边距
 			_u8g2->setFont(u8g2_font_timR08_tf);
 			_u8g2->setFontPosTop();
 			int nsx = otp.length() * 8;
