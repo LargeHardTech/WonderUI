@@ -174,6 +174,34 @@ void WonderUI::startTypewriter() {
 	const unsigned long T_BLINK2_END = T_TYPE_END + D_BLINK2;
 	const unsigned long T_END        = T_BLINK2_END + D_HOLD;
 
+	// ---- 绘制一帧（dy = 整页纵向偏移，退场下滑用；正常播放传 0）----
+	auto drawFrame = [&](int dy, int shown, int curX, int curY, bool curVisible, unsigned long t) {
+		_u8g2->firstPage();
+		do {
+			_u8g2->setFont(u8g2_font_helvB18_tf);
+			_u8g2->setFontPosTop();
+			for (int i = 0; i < shown; i++) {
+				char s[2] = { TEXT[i], 0 };
+				_u8g2->setCursor(charX[i], TEXT_Y + dy);
+				_u8g2->print(s);
+			}
+			if (curVisible) {
+				_u8g2->drawBox(curX, curY + CUR_DY + dy, CUR_W, CUR_H);
+			}
+
+			// ---- 角标署名：光标刚到中心（开始左移）时同步启动，各闪两下后常亮 ----
+			if (t >= D_DROP) {
+				unsigned long st = t - D_DROP;
+				_u8g2->setFont(u8g2_font_5x8_tf);
+				_u8g2->setFontPosTop();
+				bool showL = (st >= BLINK_L * 4) || (((st / BLINK_L) % 2) == 0);
+				bool showR = (st >= BLINK_R * 4) || (((st / BLINK_R) % 2) == 0);
+				if (showL) { _u8g2->setCursor(SIGN_LX, SIGN_LY + dy); _u8g2->print(SIGN_L); }
+				if (showR) { _u8g2->setCursor(SIGN_RX, SIGN_RY + dy); _u8g2->print(SIGN_R); }
+			}
+		} while (_u8g2->nextPage());
+	};
+
 	unsigned long t0 = millis();
 	while (true) {
 		unsigned long t = millis() - t0;
@@ -223,33 +251,21 @@ void WonderUI::startTypewriter() {
 			curX = charX[TEXT_LEN]; curY = TEXT_Y;
 		}
 
-		// 绘制一帧（firstPage/nextPage 自动清缓冲）
-		_u8g2->firstPage();
-		do {
-			_u8g2->setFont(u8g2_font_helvB18_tf);
-			_u8g2->setFontPosTop();
-			for (int i = 0; i < shown; i++) {
-				char s[2] = { TEXT[i], 0 };
-				_u8g2->setCursor(charX[i], TEXT_Y);
-				_u8g2->print(s);
-			}
-			if (curVisible) {
-				_u8g2->drawBox(curX, curY + CUR_DY, CUR_W, CUR_H);
-			}
-
-			// ---- 角标署名：光标刚到中心（开始左移）时同步启动，各闪两下后常亮 ----
-			if (t >= D_DROP) {
-				unsigned long st = t - D_DROP;
-				_u8g2->setFont(u8g2_font_5x8_tf);
-				_u8g2->setFontPosTop();
-				bool showL = (st >= BLINK_L * 4) || (((st / BLINK_L) % 2) == 0);
-				bool showR = (st >= BLINK_R * 4) || (((st / BLINK_R) % 2) == 0);
-				if (showL) { _u8g2->setCursor(SIGN_LX, SIGN_LY); _u8g2->print(SIGN_L); }
-				if (showR) { _u8g2->setCursor(SIGN_RX, SIGN_RY); _u8g2->print(SIGN_R); }
-			}
-		} while (_u8g2->nextPage());
+		drawFrame(0, shown, curX, curY, curVisible, t);
 
 		delay(2);
+	}
+
+	// ---- ⑦ 退场：整页向下滑出（衔接主界面的底部弹入）----
+	{
+		int shown = TEXT_LEN;
+		int curX  = charX[TEXT_LEN];
+		int curY  = TEXT_Y;
+		for (int f = 1; f <= 6; f++) {
+			float p = (float)f / 6.0f;
+			int dy = (int)(72 * p * p);                    // ease-in 加速下滑
+			drawFrame(dy, shown, curX, curY, true, T_END);  // t=T_END → 角标保持显示
+		}
 	}
 }
 
